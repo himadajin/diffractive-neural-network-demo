@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "prepare:ort": "node scripts/prepare-ort-assets.mjs",
+    "dev": "npm run prepare:ort && vite",
+    "build": "npm run prepare:ort && tsc && vite build",
     "check": "tsc --noEmit",
     "format": "prettier --write ."
   },
   "dependencies": {
+    "onnxruntime-web": "^1.26.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "three": "^0.184.0"

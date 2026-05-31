@@ -22,8 +22,8 @@ Then open the local Vite URL printed in the terminal.
 - Four fixed circular relief lens layers
 - Quiet white environment with cool white to cyan light accents
 - Opaque output screen with upright 0 through 9 marks arranged around a circle
-- Provisional confidence glow for Phase 1 visual testing
+- Local ONNX Runtime Web MNIST classifier driving the confidence glow
 
 ## Implementation Note
 
-The final classifier will be a small learned MNIST digit recognizer, likely through ONNX Runtime Web. The optical visuals are a Visual Plausibility Simulation: they are designed to make the light behavior feel coherent and beautiful, not to claim scientific accuracy as an optical solver.
+The classifier is a small learned MNIST digit recognizer running locally through ONNX Runtime Web. The optical visuals are a Visual Plausibility Simulation: they are designed to make the light behavior feel coherent and beautiful, not to claim scientific accuracy as an optical solver.

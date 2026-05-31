@@ -45,7 +45,7 @@ One of four fixed circular optical elements with visible surface relief, like a 
 _Avoid_: Animated layer, changing lens, abstract neural-network layer, flat glass plate
 
 **Diffraction Pattern**:
-The luminous field shown on each optical surface as the primary visual expression of light changing through the Artwork.
+The luminous field shown on each optical surface as the primary visual expression of light changing through the Artwork. It originates from the Handwritten Input and gradually organizes toward the candidate digits suggested by the Classifier, without claiming to be a physically exact diffraction calculation.
 _Avoid_: Laser ray
 
 **Guiding Beam**:
@@ -65,8 +65,8 @@ The subtle local light and shadow produced by surface relief on the Handwritten 
 _Avoid_: Drop shadow, decorative shadow
 
 **Idle Glow**:
-The faint resting illumination of the Optical Bench before the viewer draws: subtle glass edges, input-surface reflections, and weak receptor light without showing a preset digit.
-_Avoid_: Blank screen, sample input
+The faint resting illumination of the Optical Bench before the viewer draws: subtle glass edges and input-surface reflections without any Confidence Glow on the Output Screen.
+_Avoid_: Blank screen, sample input, resting result glow
 
 **Output Screen**:
 The final passive, opaque projection surface of the Artwork, marked with upright printed digits 0 through 9 arranged around a circle. The screen does not perform classification; the Relief Lens Layers determine where light lands.
@@ -81,8 +81,12 @@ The Artwork's temporal behavior: Handwritten Input and intermediate light patter
 _Avoid_: Delayed batch result, flickering output
 
 **Classifier**:
-The learned digit recognizer that produces candidate strengths for the Detector Array from the Handwritten Input. It is separate from the Visual Plausibility Simulation.
+The learned digit recognizer that produces candidate strengths for the Confidence Glow on the Output Screen from the Handwritten Input. It is separate from the Visual Plausibility Simulation.
 _Avoid_: Optical solver
+
+**Local Classifier Runtime**:
+The packaged browser-side runtime and learned digit-recognition model used by the Classifier. It is bundled with the Artwork so recognition does not depend on an external network service during viewing.
+_Avoid_: CDN-dependent model, server-side recognizer, remote API
 
 ## Example Dialogue
 
@@ -120,7 +124,7 @@ Dev: "Should the light be rainbow-colored?"
 Domain expert: "No. The Light Palette should stay mostly cool white to cyan, with only restrained spectral accents."
 
 Dev: "What should the viewer see before drawing?"
-Domain expert: "The Optical Bench should show Idle Glow, not a blank screen or a preset digit."
+Domain expert: "The Optical Bench should show Idle Glow, not a blank screen or a preset digit, and the Output Screen should not show Confidence Glow before input."
 
 Dev: "Should only the predicted digit light up?"
 Domain expert: "No. The Output Screen should show Confidence Glow for all ten digits, so ambiguous Handwritten Input can produce multiple visible candidates."
@@ -130,3 +134,9 @@ Domain expert: "No. Response Timing should feel live, with only the Confidence G
 
 Dev: "Does the optical simulation itself classify the digit?"
 Domain expert: "No. A Classifier provides the candidate strengths, and the Artwork uses them to drive the Confidence Glow on the Output Screen."
+
+Dev: "Should intermediate lens patterns only be blurred copies of the input?"
+Domain expert: "No. The Diffraction Pattern should remain input-derived, but later layers should visually organize toward the candidate digits indicated by the Classifier."
+
+Dev: "Can digit recognition depend on a remote model service?"
+Domain expert: "No. The Classifier should use a Local Classifier Runtime so the Artwork remains reproducible in exhibition and local viewing contexts."

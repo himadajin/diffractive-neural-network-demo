@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import * as THREE from "three";
+import { classifyDigit } from "./classifier";
 
 export type OpticalBenchHandle = {
   clear: () => void;
@@ -45,6 +46,7 @@ type SceneState = {
   outputTexture: THREE.CanvasTexture;
   confidence: number[];
   targetConfidence: number[];
+  classificationRequestId: number;
   hasInk: boolean;
   activePointerId: number | null;
   lastInkPoint: Point | null;
@@ -57,9 +59,9 @@ const TEXTURE_SIZE = 512;
 const DIGITS = 10;
 
 const DEFAULT_CAMERA: CameraConfig = {
-  position: { x: -2.7, y: 1.22, z: 6.2 },
-  target: { x: -0.28, y: -0.02, z: -0.04 },
-  fov: 48,
+  position: { x: -3.2, y: 1.22, z: 6.55 },
+  target: { x: 0.22, y: -0.02, z: -0.08 },
+  fov: 54,
 };
 
 const OPTICAL_AXIS = new THREE.Vector3(1, 0, -0.14).normalize();
@@ -132,25 +134,46 @@ function drawInputStroke(
   ctx.restore();
 }
 
-function measureInk(canvas: HTMLCanvasElement) {
+function strongestDigit(confidence: number[]) {
+  let index = 0;
+  let value = 0;
+  for (let i = 0; i < confidence.length; i += 1) {
+    if (confidence[i] <= value) continue;
+    index = i;
+    value = confidence[i];
+  }
+  return { index, value };
+}
+
+function visualFallbackConfidence(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return { amount: 0, cx: 0.5, cy: 0.5, verticality: 0, openness: 0 };
-  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-  let amount = 0;
+  if (!ctx) return Array(DIGITS).fill(0);
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let ink = 0;
   let sx = 0;
   let sy = 0;
-  let left = 0;
-  let right = 0;
+  let minX = canvas.width;
+  let minY = canvas.height;
+  let maxX = 0;
+  let maxY = 0;
+  let center = 0;
   let top = 0;
   let bottom = 0;
+  let left = 0;
+  let right = 0;
 
-  for (let y = 0; y < canvas.height; y += 6) {
-    for (let x = 0; x < canvas.width; x += 6) {
-      const alpha = data[(y * canvas.width + x) * 4 + 3] / 255;
-      if (alpha < 0.02) continue;
-      amount += alpha;
+  for (let y = 0; y < canvas.height; y += 8) {
+    for (let x = 0; x < canvas.width; x += 8) {
+      const alpha = image[(y * canvas.width + x) * 4 + 3] / 255;
+      if (alpha < 0.04) continue;
+      ink += alpha;
       sx += x * alpha;
       sy += y * alpha;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      if (x > canvas.width * 0.42 && x < canvas.width * 0.58) center += alpha;
       if (x < canvas.width * 0.42) left += alpha;
       if (x > canvas.width * 0.58) right += alpha;
       if (y < canvas.height * 0.38) top += alpha;
@@ -158,58 +181,34 @@ function measureInk(canvas: HTMLCanvasElement) {
     }
   }
 
-  if (amount <= 0) {
-    return { amount: 0, cx: 0.5, cy: 0.5, verticality: 0, openness: 0 };
-  }
+  if (ink <= 0) return Array(DIGITS).fill(0);
 
-  const cx = sx / amount / canvas.width;
-  const cy = sy / amount / canvas.height;
-  const verticality = Math.abs(top - bottom) / amount;
-  const openness = Math.abs(left - right) / amount;
-  return { amount, cx, cy, verticality, openness };
-}
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+  const aspect = width / height;
+  const cx = sx / ink / canvas.width;
+  const cy = sy / ink / canvas.height;
+  const scores = [
+    0.55 + Math.abs(aspect - 0.72) * -0.28 + ink * 0.0008,
+    0.75 + center / ink + Math.max(0, 0.42 - aspect),
+    0.45 + right / ink * 0.7 + Math.max(0, 0.62 - cy) * 0.45,
+    0.44 + right / ink * 0.52 + bottom / ink * 0.28,
+    0.4 + Math.max(0, 0.72 - aspect) + right / ink * 0.38,
+    0.4 + left / ink * 0.35 + bottom / ink * 0.33,
+    0.42 + left / ink * 0.45 + bottom / ink * 0.42,
+    0.48 + top / ink * 0.45 + Math.max(0, 0.52 - cy),
+    0.58 + Math.abs(aspect - 0.68) * -0.2 + center / ink * 0.2,
+    0.47 + top / ink * 0.38 + right / ink * 0.32,
+  ].map((score, digit) => Math.exp(score * 2.4 + Math.sin(cx * 6 + digit)));
 
-function estimateConfidence(canvas: HTMLCanvasElement) {
-  const ink = measureInk(canvas);
-  if (ink.amount <= 0) return Array(DIGITS).fill(0);
-
-  const features = [
-    Math.abs(ink.cx - 0.5),
-    ink.cy,
-    ink.verticality,
-    ink.openness,
-    Math.min(1, ink.amount / 620),
-  ];
-
-  const weights = [
-    [0.12, 0.58, 0.22, 0.17, 0.62],
-    [0.03, 0.46, 0.88, 0.2, 0.32],
-    [0.52, 0.34, 0.42, 0.73, 0.54],
-    [0.42, 0.52, 0.48, 0.64, 0.58],
-    [0.3, 0.42, 0.76, 0.47, 0.45],
-    [0.48, 0.58, 0.37, 0.69, 0.61],
-    [0.55, 0.64, 0.45, 0.53, 0.7],
-    [0.16, 0.25, 0.82, 0.25, 0.34],
-    [0.28, 0.5, 0.36, 0.22, 0.86],
-    [0.38, 0.38, 0.44, 0.58, 0.72],
-  ];
-
-  const raw = weights.map((digitWeights, digit) => {
-    const score = digitWeights.reduce(
-      (sum, weight, index) => sum + weight * features[index],
-      0,
-    );
-    return Math.exp(
-      score * 2.2 + Math.sin((digit + 1) * 1.71 + ink.cx * 3.2) * 0.45,
-    );
-  });
-  const total = raw.reduce((sum, value) => sum + value, 0);
-  return raw.map((value) => value / total);
+  const total = scores.reduce((sum, value) => sum + value, 0);
+  return scores.map((score) => score / total);
 }
 
 function drawLensTexture(
   canvas: HTMLCanvasElement,
   source: HTMLCanvasElement,
+  confidence: number[],
   layer: number,
   hasInk: boolean,
 ) {
@@ -256,16 +255,85 @@ function drawLensTexture(
   }
 
   if (hasInk) {
+    const sourceCtx = source.getContext("2d", { willReadFrequently: true });
+    const sourceData = sourceCtx?.getImageData(
+      0,
+      0,
+      source.width,
+      source.height,
+    );
+    const { index: winner, value: winnerStrength } = strongestDigit(confidence);
+    const focus = digitAnchors[winner] ?? { x: 0.5, y: 0.5 };
+    const layerProgress = layer / 4;
+
+    if (sourceData) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      for (let y = 18; y < source.height - 18; y += 9) {
+        for (let x = 18; x < source.width - 18; x += 9) {
+          const alpha = sourceData.data[(y * source.width + x) * 4 + 3] / 255;
+          if (alpha < 0.06) continue;
+          const nx = x / source.width;
+          const ny = y / source.height;
+          const towardFocusX = (focus.x - nx) * size * layerProgress * 0.38;
+          const towardFocusY = (focus.y - ny) * size * layerProgress * 0.38;
+          const phase =
+            Math.sin(nx * 34 + layer * 1.7) + Math.cos(ny * 29 - layer * 1.3);
+          const swirl = (layer * 0.09 + winnerStrength * 0.2) * size;
+          const px =
+            x +
+            towardFocusX +
+            Math.cos(phase + layer) * swirl * 0.12 -
+            size * 0.5 * layerProgress * 0.04;
+          const py =
+            y +
+            towardFocusY +
+            Math.sin(phase - layer) * swirl * 0.12 +
+            size * 0.5 * layerProgress * 0.03;
+          const radius = 1.4 + alpha * 5.2 + layerProgress * 2.2;
+          const glow = ctx.createRadialGradient(px, py, 0, px, py, radius * 6);
+          glow.addColorStop(0, `rgba(215, 253, 255, ${0.22 + alpha * 0.34})`);
+          glow.addColorStop(0.42, `rgba(93, 196, 217, ${0.07 + alpha * 0.2})`);
+          glow.addColorStop(1, "rgba(93, 196, 217, 0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(px, py, radius * 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
     ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    ctx.filter = `blur(${10 + layer * 4}px)`;
-    const dx = Math.sin(layer * 1.3) * 24;
-    const dy = Math.cos(layer * 1.1) * 18;
-    ctx.globalAlpha = 0.35 + layer * 0.08;
-    ctx.drawImage(source, dx, dy, size, size);
-    ctx.filter = "none";
-    ctx.globalAlpha = 0.18;
-    ctx.drawImage(source, -dx * 0.45, -dy * 0.45, size, size);
+    ctx.globalCompositeOperation = "lighter";
+    confidence.forEach((strength, digit) => {
+      if (strength < 0.025) return;
+      const anchor = digitAnchors[digit];
+      const x = size * (0.5 + (anchor.x - 0.5) * layerProgress * 0.8);
+      const y = size * (0.5 + (anchor.y - 0.5) * layerProgress * 0.8);
+      const radius = size * (0.09 + layerProgress * 0.12 + strength * 0.08);
+      const alpha = Math.min(0.38, strength * (0.18 + layerProgress * 0.55));
+      const glow = ctx.createRadialGradient(x, y, radius * 0.08, x, y, radius);
+      glow.addColorStop(0, `rgba(235, 255, 255, ${alpha})`);
+      glow.addColorStop(0.55, `rgba(93, 205, 225, ${alpha * 0.4})`);
+      glow.addColorStop(1, "rgba(93, 205, 225, 0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, size, size);
+
+      ctx.strokeStyle = `rgba(36, 132, 154, ${alpha * 0.7})`;
+      ctx.lineWidth = 0.8 + strength * 2.2;
+      for (let ring = 0; ring < 3; ring += 1) {
+        ctx.beginPath();
+        ctx.arc(
+          x,
+          y,
+          radius * (0.34 + ring * 0.22),
+          digit * 0.37 + layer,
+          digit * 0.37 + layer + Math.PI * (0.8 + strength),
+        );
+        ctx.stroke();
+      }
+    });
     ctx.restore();
   } else {
     const idle = ctx.createRadialGradient(
@@ -317,20 +385,38 @@ function drawOutputTexture(
     const anchor = digitAnchors[digit];
     const x = anchor.x * size;
     const y = anchor.y * size;
-    const strength = hasInk ? confidence[digit] : 0.012;
+    const strength = hasInk ? confidence[digit] : 0;
+    if (strength <= 0.0005) continue;
     const glow = ctx.createRadialGradient(
       x,
       y,
       4,
       x,
       y,
-      size * (0.08 + strength * 0.24),
+      size * (0.08 + strength * 0.48),
     );
-    glow.addColorStop(0, `rgba(56, 184, 220, ${0.36 + strength * 2.4})`);
-    glow.addColorStop(0.35, `rgba(154, 224, 235, ${0.14 + strength * 0.95})`);
+    glow.addColorStop(
+      0,
+      `rgba(44, 181, 219, ${Math.min(0.95, 0.12 + strength * 3.4)})`,
+    );
+    glow.addColorStop(
+      0.36,
+      `rgba(142, 226, 239, ${Math.min(0.62, strength * 1.7)})`,
+    );
     glow.addColorStop(1, "rgba(154, 224, 235, 0)");
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, size, size);
+
+    ctx.fillStyle = `rgba(28, 171, 211, ${Math.min(0.5, 0.05 + strength * 1.25)})`;
+    ctx.beginPath();
+    ctx.arc(x, y, size * (0.018 + strength * 0.04), 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(52, 184, 220, ${Math.min(0.68, strength * 1.8)})`;
+    ctx.lineWidth = 1.4 + strength * 4;
+    ctx.beginPath();
+    ctx.arc(x, y, size * (0.042 + strength * 0.1), 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   ctx.textAlign = "center";
@@ -451,7 +537,13 @@ function createScene(
   });
 
   lensTextures.forEach((texture, index) => {
-    drawLensTexture(lensCanvases[index], inputCanvas, index + 1, false);
+    drawLensTexture(
+      lensCanvases[index],
+      inputCanvas,
+      Array(DIGITS).fill(0),
+      index + 1,
+      false,
+    );
     texture.needsUpdate = true;
     const lens = new THREE.Mesh(
       new THREE.CircleGeometry(0.52, 160),
@@ -521,6 +613,7 @@ function createScene(
     outputTexture,
     confidence: Array(DIGITS).fill(0),
     targetConfidence: Array(DIGITS).fill(0),
+    classificationRequestId: 0,
     hasInk: false,
     activePointerId: null,
     lastInkPoint: null,
@@ -531,7 +624,13 @@ function createScene(
 
 function updateTextures(state: SceneState) {
   state.lensCanvases.forEach((canvas, index) => {
-    drawLensTexture(canvas, state.inputCanvas, index + 1, state.hasInk);
+    drawLensTexture(
+      canvas,
+      state.inputCanvas,
+      state.confidence,
+      index + 1,
+      state.hasInk,
+    );
     state.lensTextures[index].needsUpdate = true;
   });
   drawOutputTexture(state.outputCanvas, state.confidence, state.hasInk);
@@ -549,6 +648,22 @@ function resize(container: HTMLDivElement, state: SceneState) {
 function readNumber(value: string, fallback: number) {
   const next = Number(value);
   return Number.isFinite(next) ? next : fallback;
+}
+
+function requestClassification(state: SceneState) {
+  const requestId = state.classificationRequestId + 1;
+  state.classificationRequestId = requestId;
+  state.targetConfidence = visualFallbackConfidence(state.inputCanvas);
+  void classifyDigit(state.inputCanvas)
+    .then((confidence) => {
+      if (state.classificationRequestId !== requestId || !state.hasInk) return;
+      const strongest = Math.max(...confidence);
+      if (strongest <= 0.001) return;
+      state.targetConfidence = confidence;
+    })
+    .catch((error: unknown) => {
+      console.warn("Digit classifier failed", error);
+    });
 }
 
 function isDebugMode() {
@@ -602,6 +717,7 @@ export const OpticalBenchCanvas = forwardRef<
       resetInputCanvas(state.inputCanvas);
       state.inputTexture.needsUpdate = true;
       state.hasInk = false;
+      state.classificationRequestId += 1;
       state.targetConfidence = Array(DIGITS).fill(0);
       state.lastInkPoint = null;
       state.onInkChange(false);
@@ -649,7 +765,7 @@ export const OpticalBenchCanvas = forwardRef<
       drawInputStroke(state.inputCanvas, null, point);
       state.inputTexture.needsUpdate = true;
       state.hasInk = true;
-      state.targetConfidence = estimateConfidence(state.inputCanvas);
+      requestClassification(state);
       state.onInkChange(true);
       state.renderer.domElement.setPointerCapture(event.pointerId);
     };
@@ -662,7 +778,7 @@ export const OpticalBenchCanvas = forwardRef<
       state.lastInkPoint = point;
       state.inputTexture.needsUpdate = true;
       state.hasInk = true;
-      state.targetConfidence = estimateConfidence(state.inputCanvas);
+      requestClassification(state);
     };
     const handlePointerUp = (event: PointerEvent) => {
       if (state.activePointerId !== event.pointerId) return;

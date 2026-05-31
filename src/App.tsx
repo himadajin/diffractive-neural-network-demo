@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OpticalBenchCanvas, type OpticalBenchHandle } from "./OpticalBenchCanvas";
+import {
+  OpticalBenchCanvas,
+  type OpticalBenchHandle,
+} from "./OpticalBenchCanvas";
 
 export function App() {
   const benchRef = useRef<OpticalBenchHandle | null>(null);

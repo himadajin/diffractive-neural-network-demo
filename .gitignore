@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 /local/
 /tmp/
 .playwright-cli/
+
+# Generated from onnxruntime-web during prepare:ort.
+/public/ort/
