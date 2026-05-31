@@ -23,9 +23,7 @@ export function drawInputStroke(
   circleMask(ctx, canvas.width);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgba(8, 18, 22, 0.86)";
-  ctx.shadowColor = "rgba(42, 68, 74, 0.22)";
-  ctx.shadowBlur = 10;
+  ctx.strokeStyle = "rgba(8, 18, 22, 1)";
   ctx.lineWidth = 38;
   ctx.beginPath();
   ctx.moveTo(from?.x ?? to.x, from?.y ?? to.y);
@@ -529,20 +527,59 @@ function drawSmoothInputMask(
   inputCanvas: HTMLCanvasElement,
 ) {
   const size = ctx.canvas.width;
+  const maskCanvas = document.createElement("canvas");
+  maskCanvas.width = size;
+  maskCanvas.height = size;
+  const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
+  if (!maskCtx) return;
+
+  maskCtx.drawImage(inputCanvas, 0, 0, size, size);
+  const image = maskCtx.getImageData(0, 0, size, size);
+  for (let i = 0; i < image.data.length; i += 4) {
+    const alpha = image.data[i + 3] / 255;
+    const shapedAlpha = clamp01((alpha - 0.06) / 0.18);
+    image.data[i] = 0;
+    image.data[i + 1] = 0;
+    image.data[i + 2] = 0;
+    image.data[i + 3] = Math.round(shapedAlpha * shapedAlpha * 255);
+  }
+  maskCtx.putImageData(image, 0, 0);
+
+  const inkCanvas = document.createElement("canvas");
+  inkCanvas.width = size;
+  inkCanvas.height = size;
+  const inkCtx = inkCanvas.getContext("2d");
+  if (!inkCtx) return;
+  inkCtx.fillStyle = "rgba(2, 11, 14, 0.9)";
+  inkCtx.fillRect(0, 0, size, size);
+  inkCtx.globalCompositeOperation = "destination-in";
+  inkCtx.drawImage(maskCanvas, 0, 0);
+
+  const edgeCanvas = document.createElement("canvas");
+  edgeCanvas.width = size;
+  edgeCanvas.height = size;
+  const edgeCtx = edgeCanvas.getContext("2d");
+  if (!edgeCtx) return;
+  edgeCtx.fillStyle = "rgba(190, 236, 240, 0.42)";
+  edgeCtx.fillRect(0, 0, size, size);
+  edgeCtx.globalCompositeOperation = "destination-in";
+  edgeCtx.drawImage(maskCanvas, 0, 0);
 
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "blur(5px)";
-  ctx.globalAlpha = 0.28;
-  ctx.drawImage(inputCanvas, 0, 0, size, size);
+
+  ctx.filter = "blur(7px)";
+  ctx.globalAlpha = 0.22;
+  ctx.drawImage(maskCanvas, 0, 0);
+
   ctx.filter = "none";
   ctx.globalAlpha = 1;
-  ctx.drawImage(inputCanvas, 0, 0, size, size);
+  ctx.drawImage(inkCanvas, 0, 0);
 
   ctx.globalCompositeOperation = "screen";
-  ctx.filter = "blur(2px)";
-  ctx.globalAlpha = 0.16;
-  ctx.drawImage(inputCanvas, 0, 0, size, size);
+  ctx.filter = "blur(1.6px)";
+  ctx.globalAlpha = 0.12;
+  ctx.drawImage(edgeCanvas, 0, 0);
   ctx.restore();
 }
 
