@@ -16,6 +16,10 @@ _Avoid_: Accurate diffraction solver, scientific simulation
 The digit data drawn by the viewer through the Drawing Panel and reflected live onto the Input Surface. Development presets may exist, but they are not part of the viewer-facing Artwork.
 _Avoid_: Preset selector, auto-play source, direct 3D surface manipulation
 
+**Canonical Input Orientation**:
+The shared left/right and top/bottom meaning of the Handwritten Input: a digit is upright exactly as the viewer draws it in the Drawing Panel. The Input Surface, Diffraction Pattern, and Classifier all refer to this same handedness, even when camera perspective changes how the optical surface appears.
+_Avoid_: Mirrored input, back-side input, classifier-only orientation, surface-local handedness
+
 **Drawing Panel**:
 The viewer-facing two-dimensional drawing surface used to create the Handwritten Input. It belongs to the Exhibition UI, not the optical instrument, and contains the clearing control; when collapsed, clearing does not need a separate visible control. The panel opens from the Input Surface but remains layout-independent from it, so drawing stays practical without displacing the real-time optical response or the Optical Bench's visual presence.
 _Avoid_: 3D object drawing, optical component, settings panel, preset selector, global clear button, hidden input affordance, close-button chrome, connector line, callout tether
@@ -64,6 +68,10 @@ _Avoid_: Camera-facing lens layout, fanned layers, physically broken optical app
 An Optical Bench composition where the optical axis advances from the viewer-facing foreground into scene depth, like a microscope-like light path, while still keeping the Handwritten Input, Relief Lens Layers, and Output Screen readable.
 _Avoid_: Side-on rail diagram, top-to-bottom flat stack
 
+**Propagation Direction**:
+The optical direction of the Artwork: the Handwritten Input enters from the viewer-facing Input Surface and progresses through Relief Lens Layers toward the Output Screen in scene depth. It is independent of screen-space axes and must not be confused with texture or classifier orientation.
+_Avoid_: Left-to-right flow, screen-vertical flow, camera direction, texture orientation
+
 **Relief Lens Layer**:
 One of four fixed circular optical elements with visible surface relief, like a learned lens in a telescope-like or microscope-like light circuit. Each layer changes the meaning and distribution of light passing through it, while the layer itself does not change when the Handwritten Input changes. Its relief should primarily read as continuous optical structure, with only subtle learned irregularity.
 _Avoid_: Animated layer, changing lens, abstract neural-network layer, flat glass plate
@@ -108,6 +116,10 @@ _Avoid_: Delayed batch result, flickering output
 The learned digit recognizer that produces candidate strengths for the Confidence Glow on the Output Screen from the Handwritten Input. It is separate from the Visual Plausibility Simulation.
 _Avoid_: Optical solver
 
+**Classifier Normalization**:
+The preparation of Handwritten Input for the Classifier while preserving Canonical Input Orientation. It may make the digit easier for the learned recognizer to read, but it is not a second source of truth or a place to repair optical-surface orientation.
+_Avoid_: Mirror correction, display correction, classifier-space drawing, hidden input transform
+
 **Local Classifier Runtime**:
 The packaged browser-side runtime and learned digit-recognition model used by the Classifier. It is bundled with the Artwork so recognition does not depend on an external network service during viewing.
 _Avoid_: CDN-dependent model, server-side recognizer, remote API
@@ -150,6 +162,9 @@ Domain expert: "No. Reopening the Drawing Panel should show the current Handwrit
 Dev: "Can the Drawing Panel, Input Surface, and Classifier each keep separate versions of the input?"
 Domain expert: "No. The Handwritten Input should have one source of truth so the Drawing Panel, Input Surface, and optical response all reflect the same drawing."
 
+Dev: "If the Input Surface is seen at an angle, should the Classifier flip the digit because the optical component has a front and back?"
+Domain expert: "No. Canonical Input Orientation stays viewer-upright: a drawn 2 must remain a 2 for the Drawing Panel, Input Surface, Diffraction Pattern, and Classifier."
+
 Dev: "Should the Drawing Panel become large enough to prioritize beautiful handwriting?"
 Domain expert: "No. The Artwork is about real-time optical feedback, so the Drawing Panel should remain practical without sacrificing the visible Optical Bench."
 
@@ -177,6 +192,9 @@ Domain expert: "No. Optical Instrument Coherence matters: readability should com
 Dev: "Should the optical path read as a left-to-right rail?"
 Domain expert: "No. A Depth-Aligned Optical Bench is preferred: the light path should advance from the viewer-facing foreground into scene depth, while preserving readability of the input, intermediate lenses, and output."
 
+Dev: "Does Propagation Direction define the digit's left and right?"
+Domain expert: "No. Propagation Direction describes where light travels in the Optical Bench; Canonical Input Orientation describes how the Handwritten Input is read."
+
 Dev: "Can the screen be rotated separately to make the digits easier to read?"
 Domain expert: "No. The screen belongs to the same optical axis as the lenses; readability should come from camera composition rather than breaking the physical arrangement."
 
@@ -200,6 +218,9 @@ Domain expert: "No. Response Timing should feel live, with only the Confidence G
 
 Dev: "Does the optical simulation itself classify the digit?"
 Domain expert: "No. A Classifier provides the candidate strengths, and the Artwork uses them to drive the Confidence Glow on the Output Screen."
+
+Dev: "Can Classifier Normalization mirror or rotate the Handwritten Input if it improves recognition?"
+Domain expert: "No. It may prepare the input for recognition, but it must preserve Canonical Input Orientation so a drawn digit is not interpreted as its mirror image."
 
 Dev: "Should intermediate lens patterns only be blurred copies of the input?"
 Domain expert: "No. The Diffraction Pattern should remain input-derived, but later layers should visually organize toward the candidate digits indicated by the Classifier."
