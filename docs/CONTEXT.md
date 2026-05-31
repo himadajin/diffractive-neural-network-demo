@@ -116,6 +116,10 @@ _Avoid_: Winner-only output, probability halo, expanding color field
 The Artwork's temporal behavior: Handwritten Input and intermediate light patterns respond immediately, while Confidence Glow follows smoothly with slight inertia.
 _Avoid_: Delayed batch result, flickering output
 
+**Optical Settling**:
+The temporal character of the light circuit as the Diffraction Pattern responds immediately to Handwritten Input and then gradually organizes toward the Classifier's candidate strengths. It should feel like light resolving through the Optical Bench, not like a delayed result appearing after computation.
+_Avoid_: Result pop-in, loading reveal, classifier handoff, flickering correction
+
 **Classifier**:
 The learned digit recognizer that produces candidate strengths for the Confidence Glow on the Output Screen from the Handwritten Input. It is separate from the Visual Plausibility Simulation.
 _Avoid_: Optical solver

@@ -94,8 +94,18 @@ export function requestClassification(state: SceneState) {
 }
 
 export function smoothConfidence(state: SceneState) {
+  let changed = false;
   for (let i = 0; i < DIGITS; i += 1) {
-    state.confidence[i] +=
-      (state.targetConfidence[i] - state.confidence[i]) * 0.08;
+    const delta = state.targetConfidence[i] - state.confidence[i];
+    if (Math.abs(delta) <= 0.0005) {
+      if (state.confidence[i] !== state.targetConfidence[i]) {
+        state.confidence[i] = state.targetConfidence[i];
+        changed = true;
+      }
+      continue;
+    }
+    state.confidence[i] += delta * 0.08;
+    changed = true;
   }
+  return changed;
 }

@@ -11,7 +11,11 @@ import {
 } from "./constants";
 import { createCanvas } from "./canvas";
 import { smoothConfidence } from "./confidence";
-import { drawLensTexture, drawOutputTexture } from "./textures";
+import {
+  drawLensBaseTexture,
+  drawLensTexture,
+  drawOutputTexture,
+} from "./textures";
 import type { CameraConfig, SceneState } from "./types";
 
 function pointOnAxis(distance: number, y = 0) {
@@ -116,6 +120,11 @@ export function createScene(
   inputRim.quaternion.copy(inputMesh.quaternion);
   scene.add(inputRim);
 
+  const lensBaseCanvases = LENS_STOPS.map((_, index) => {
+    const canvas = createCanvas();
+    drawLensBaseTexture(canvas, index + 1);
+    return canvas;
+  });
   const lensCanvases = LENS_STOPS.map(() => createCanvas());
   const lensTextures = lensCanvases.map((canvas) => {
     const texture = new THREE.CanvasTexture(canvas);
@@ -126,7 +135,8 @@ export function createScene(
   lensTextures.forEach((texture, index) => {
     drawLensTexture(
       lensCanvases[index],
-      inputCanvas,
+      lensBaseCanvases[index],
+      [],
       Array(DIGITS).fill(0),
       index + 1,
       false,
@@ -192,6 +202,9 @@ export function createScene(
     inputMesh,
     inputCanvas,
     inputTexture,
+    inputLightSamples: [],
+    textureDirty: false,
+    lensBaseCanvases,
     lensCanvases,
     lensTextures,
     outputCanvas,
@@ -211,7 +224,8 @@ export function updateTextures(state: SceneState) {
   state.lensCanvases.forEach((canvas, index) => {
     drawLensTexture(
       canvas,
-      state.inputCanvas,
+      state.lensBaseCanvases[index],
+      state.inputLightSamples,
       state.confidence,
       index + 1,
       state.hasInk,
@@ -220,6 +234,7 @@ export function updateTextures(state: SceneState) {
   });
   drawOutputTexture(state.outputCanvas, state.confidence, state.hasInk);
   state.outputTexture.needsUpdate = true;
+  state.textureDirty = false;
 }
 
 export function resize(container: HTMLDivElement, state: SceneState) {
@@ -231,8 +246,10 @@ export function resize(container: HTMLDivElement, state: SceneState) {
 }
 
 export function animate(state: SceneState) {
-  smoothConfidence(state);
-  updateTextures(state);
+  const confidenceChanged = smoothConfidence(state);
+  if (state.textureDirty || confidenceChanged) {
+    updateTextures(state);
+  }
   state.renderer.render(state.scene, state.camera);
   state.animationFrame = window.requestAnimationFrame(() => animate(state));
 }

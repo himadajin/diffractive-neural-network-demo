@@ -1,6 +1,6 @@
 import { DIGIT_ANCHORS, DIGITS } from "./constants";
 import { circleMask } from "./canvas";
-import type { Point } from "./types";
+import type { InputLightSample, Point } from "./types";
 
 export function resetInputCanvas(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -57,13 +57,30 @@ function outputDisplayStrength(confidence: number[], strength: number) {
   return Math.min(1, Math.pow(contrastStretched, 0.72));
 }
 
-export function drawLensTexture(
-  canvas: HTMLCanvasElement,
-  source: HTMLCanvasElement,
-  confidence: number[],
-  layer: number,
-  hasInk: boolean,
-) {
+export function sampleInputLight(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return [];
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const samples: InputLightSample[] = [];
+
+  for (let y = 18; y < canvas.height - 18; y += 9) {
+    for (let x = 18; x < canvas.width - 18; x += 9) {
+      const alpha = image[(y * canvas.width + x) * 4 + 3] / 255;
+      if (alpha < 0.06) continue;
+      samples.push({
+        x,
+        y,
+        nx: x / canvas.width,
+        ny: y / canvas.height,
+        alpha,
+      });
+    }
+  }
+
+  return samples;
+}
+
+export function drawLensBaseTexture(canvas: HTMLCanvasElement, layer: number) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const size = canvas.width;
@@ -106,52 +123,67 @@ export function drawLensTexture(
     ctx.stroke();
   }
 
+  ctx.restore();
+}
+
+export function drawLensTexture(
+  canvas: HTMLCanvasElement,
+  baseCanvas: HTMLCanvasElement,
+  inputLightSamples: InputLightSample[],
+  confidence: number[],
+  layer: number,
+  hasInk: boolean,
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const size = canvas.width;
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(baseCanvas, 0, 0);
+  ctx.save();
+  circleMask(ctx, size);
+
   if (hasInk) {
-    const sourceCtx = source.getContext("2d", { willReadFrequently: true });
-    const sourceData = sourceCtx?.getImageData(
-      0,
-      0,
-      source.width,
-      source.height,
-    );
     const { index: winner, value: winnerStrength } = strongestDigit(confidence);
     const focus = DIGIT_ANCHORS[winner] ?? { x: 0.5, y: 0.5 };
     const layerProgress = layer / 4;
 
-    if (sourceData) {
+    if (inputLightSamples.length > 0) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      for (let y = 18; y < source.height - 18; y += 9) {
-        for (let x = 18; x < source.width - 18; x += 9) {
-          const alpha = sourceData.data[(y * source.width + x) * 4 + 3] / 255;
-          if (alpha < 0.06) continue;
-          const nx = x / source.width;
-          const ny = y / source.height;
-          const towardFocusX = (focus.x - nx) * size * layerProgress * 0.38;
-          const towardFocusY = (focus.y - ny) * size * layerProgress * 0.38;
-          const phase =
-            Math.sin(nx * 34 + layer * 1.7) + Math.cos(ny * 29 - layer * 1.3);
-          const swirl = (layer * 0.09 + winnerStrength * 0.2) * size;
-          const px =
-            x +
-            towardFocusX +
-            Math.cos(phase + layer) * swirl * 0.12 -
-            size * 0.5 * layerProgress * 0.04;
-          const py =
-            y +
-            towardFocusY +
-            Math.sin(phase - layer) * swirl * 0.12 +
-            size * 0.5 * layerProgress * 0.03;
-          const radius = 1.4 + alpha * 5.2 + layerProgress * 2.2;
-          const glow = ctx.createRadialGradient(px, py, 0, px, py, radius * 6);
-          glow.addColorStop(0, `rgba(215, 253, 255, ${0.22 + alpha * 0.34})`);
-          glow.addColorStop(0.42, `rgba(93, 196, 217, ${0.07 + alpha * 0.2})`);
-          glow.addColorStop(1, "rgba(93, 196, 217, 0)");
-          ctx.fillStyle = glow;
-          ctx.beginPath();
-          ctx.arc(px, py, radius * 6, 0, Math.PI * 2);
-          ctx.fill();
-        }
+      for (const sample of inputLightSamples) {
+        const towardFocusX =
+          (focus.x - sample.nx) * size * layerProgress * 0.38;
+        const towardFocusY =
+          (focus.y - sample.ny) * size * layerProgress * 0.38;
+        const phase =
+          Math.sin(sample.nx * 34 + layer * 1.7) +
+          Math.cos(sample.ny * 29 - layer * 1.3);
+        const swirl = (layer * 0.09 + winnerStrength * 0.2) * size;
+        const px =
+          sample.x +
+          towardFocusX +
+          Math.cos(phase + layer) * swirl * 0.12 -
+          size * 0.5 * layerProgress * 0.04;
+        const py =
+          sample.y +
+          towardFocusY +
+          Math.sin(phase - layer) * swirl * 0.12 +
+          size * 0.5 * layerProgress * 0.03;
+        const radius = 1.4 + sample.alpha * 5.2 + layerProgress * 2.2;
+        const glow = ctx.createRadialGradient(px, py, 0, px, py, radius * 6);
+        glow.addColorStop(
+          0,
+          `rgba(215, 253, 255, ${0.22 + sample.alpha * 0.34})`,
+        );
+        glow.addColorStop(
+          0.42,
+          `rgba(93, 196, 217, ${0.07 + sample.alpha * 0.2})`,
+        );
+        glow.addColorStop(1, "rgba(93, 196, 217, 0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(px, py, radius * 6, 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.restore();
     }
