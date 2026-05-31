@@ -750,7 +750,7 @@ export const OpticalBenchCanvas = forwardRef<
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const state = createScene(container, onInkChange, cameraConfig);
+    const state = createScene(container, onInkChange, DEFAULT_CAMERA);
     stateRef.current = state;
     resize(container, state);
     animate(state);
