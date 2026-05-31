@@ -21,8 +21,12 @@ The viewer-facing controls of the Artwork, limited to drawing, clearing, and see
 _Avoid_: Settings panel, explanation panel, preset selector
 
 **Development Controls**:
-Non-exhibition controls used to test and debug the Artwork, such as presets, diagnostics, or model confidence inspection.
+Non-exhibition controls used to test and debug the Artwork, such as presets, diagnostics, model confidence inspection, or numeric camera controls. They may expose reproducible parameter values but must stay outside the viewer-facing Exhibition UI.
 _Avoid_: Viewer-facing controls
+
+**Camera Debug Controls**:
+A minimal Development Controls surface for adjusting and reading the Optical Bench camera position, target, and field of view with numeric inputs. It exists so visual composition can be discussed with exact numeric parameters without adding exhibition-facing controls.
+_Avoid_: Exhibition camera navigation, viewer-facing orbit controls
 
 **Prototype Rendering**:
 The initial rendering approach for the Artwork, using a simplified Canvas-based version to establish visual direction before investing in more detailed glass rendering.
@@ -33,7 +37,7 @@ The first target presentation format for the Artwork: a desktop or exhibition-st
 _Avoid_: Mobile-first layout
 
 **Optical Bench**:
-The viewer-facing spatial arrangement of the Artwork, shown as a fixed-camera three-dimensional sequence of input surface, four optical layers, and output detector. The viewer does not navigate a free 3D scene.
+The viewer-facing spatial arrangement of the Artwork, shown as a fixed-camera three-dimensional sequence of input surface, four Relief Lens Layers, and one Output Screen. The components sit along a single optical axis and each surface is perpendicular to that axis, while the viewer-facing camera angle preserves readability.
 _Avoid_: Flat diagram, free camera 3D scene
 
 **Relief Lens Layer**:
@@ -45,7 +49,7 @@ The luminous field shown on each optical surface as the primary visual expressio
 _Avoid_: Laser ray
 
 **Guiding Beam**:
-A development-only or highly restrained directional cue between optical surfaces. The Artwork should express propagation primarily through light landing on lens surfaces, projected shadows, and changing diffraction patterns rather than visible connecting lines.
+A development-only or highly restrained directional cue between optical surfaces. The Artwork should express propagation primarily through light landing on lens surfaces, relief shading, reflections, and changing diffraction patterns rather than visible connecting lines or component cast shadows.
 _Avoid_: Viewer-facing light rays, primary light visualization
 
 **Light Palette**:
@@ -53,8 +57,12 @@ The Artwork's restrained light color language: a quiet white-based environment w
 _Avoid_: Dark background, warm exhibition lighting, full rainbow palette, AI neon palette
 
 **Quiet White Environment**:
-The understated white to light-gray spatial setting behind the Optical Bench. It exists to catch shadows, reflections, and projected light without becoming a visual subject of the Artwork.
+The understated white to light-gray spatial setting behind the Optical Bench. It exists as a quiet negative space for the optical components, reflections, and projected light without becoming a visual subject of the Artwork.
 _Avoid_: Decorative background, warm booth lighting, information panel
+
+**Relief Shading**:
+The subtle local light and shadow produced by surface relief on the Handwritten Input and Relief Lens Layers. It is part of the material quality of the optical elements, unlike component cast shadows on the environment.
+_Avoid_: Drop shadow, decorative shadow
 
 **Idle Glow**:
 The faint resting illumination of the Optical Bench before the viewer draws: subtle glass edges, input-surface reflections, and weak receptor light without showing a preset digit.
@@ -90,17 +98,23 @@ Domain expert: "No. The Artwork should expose only Handwritten Input. Presets ar
 Dev: "Can the screen show model diagnostics?"
 Domain expert: "Only as Development Controls. The Exhibition UI should stay limited to drawing, clearing, and the optical result."
 
+Dev: "Should viewers be able to move the camera?"
+Domain expert: "No. Camera Debug Controls may exist behind a debug flag, but the Artwork itself has a fixed camera."
+
 Dev: "Does the first implementation need final-quality glass?"
 Domain expert: "No. Prototype Rendering should establish the composition and behavior first, while preserving the importance of high-quality glass in the final Artwork."
 
 Dev: "Is the scene a full 3D environment?"
-Domain expert: "No. It is an Optical Bench: a fixed pseudo-3D composition that gives depth without requiring camera controls."
+Domain expert: "No. It is an Optical Bench: a fixed 3D composition whose input surface, Relief Lens Layers, and Output Screen read as one physically plausible optical path."
+
+Dev: "Can the screen be rotated separately to make the digits easier to read?"
+Domain expert: "No. The screen belongs to the same optical axis as the lenses; readability should come from camera composition rather than breaking the physical arrangement."
 
 Dev: "Do the optical layers change for each input?"
 Domain expert: "No. The Relief Glass Layers are fixed physical-looking elements. The light passing through them changes."
 
-Dev: "Should the Artwork show light as laser lines?"
-Domain expert: "Only subtly. The main light expression is the Diffraction Pattern on each surface, with Guiding Beams used only to imply direction."
+Dev: "Should the Artwork show light as laser lines or object shadows?"
+Domain expert: "No. The main light expression is the Diffraction Pattern, reflected highlights, Relief Shading, and brightness on the Output Screen; Guiding Beams are only for restrained development cues."
 
 Dev: "Should the light be rainbow-colored?"
 Domain expert: "No. The Light Palette should stay mostly cool white to cyan, with only restrained spectral accents."
@@ -115,4 +129,4 @@ Dev: "Should the result update only after drawing finishes?"
 Domain expert: "No. Response Timing should feel live, with only the Confidence Glow smoothed to avoid flicker."
 
 Dev: "Does the optical simulation itself classify the digit?"
-Domain expert: "No. A Classifier provides the candidate strengths, and the Artwork uses them to drive the Detector Array."
+Domain expert: "No. A Classifier provides the candidate strengths, and the Artwork uses them to drive the Confidence Glow on the Output Screen."

@@ -1,8 +1,11 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
+  useState,
 } from "react";
 import * as THREE from "three";
 
@@ -13,6 +16,18 @@ export type OpticalBenchHandle = {
 type Point = {
   x: number;
   y: number;
+};
+
+type CameraConfig = {
+  position: Point3;
+  target: Point3;
+  fov: number;
+};
+
+type Point3 = {
+  x: number;
+  y: number;
+  z: number;
 };
 
 type SceneState = {
@@ -41,7 +56,24 @@ const INPUT_SIZE = 512;
 const TEXTURE_SIZE = 512;
 const DIGITS = 10;
 
-const lensX = [-1.95, -0.85, 0.25, 1.35];
+const DEFAULT_CAMERA: CameraConfig = {
+  position: { x: -2.7, y: 1.22, z: 6.2 },
+  target: { x: -0.28, y: -0.02, z: -0.04 },
+  fov: 48,
+};
+
+const OPTICAL_AXIS = new THREE.Vector3(1, 0, -0.14).normalize();
+const SURFACE_ROTATION = new THREE.Quaternion().setFromUnitVectors(
+  new THREE.Vector3(0, 0, 1),
+  OPTICAL_AXIS,
+);
+const OUTPUT_ROTATION = new THREE.Quaternion().setFromUnitVectors(
+  new THREE.Vector3(0, 0, 1),
+  OPTICAL_AXIS.clone().negate(),
+);
+const SURFACE_STOPS = [-2.65, -1.28, -0.42, 0.44, 1.3, 2.65];
+const lensStops = SURFACE_STOPS.slice(1, 5);
+
 const digitAnchors = Array.from({ length: DIGITS }, (_, index) => {
   const angle = -Math.PI / 2 + (index / DIGITS) * Math.PI * 2;
   return {
@@ -49,6 +81,14 @@ const digitAnchors = Array.from({ length: DIGITS }, (_, index) => {
     y: 0.5 + Math.sin(angle) * 0.31,
   };
 });
+
+function pointOnAxis(distance: number, y = 0) {
+  return OPTICAL_AXIS.clone().multiplyScalar(distance).setY(y);
+}
+
+function applySurfaceRotation(object: THREE.Object3D) {
+  object.quaternion.copy(SURFACE_ROTATION);
+}
 
 function createCanvas(size = TEXTURE_SIZE) {
   const canvas = document.createElement("canvas");
@@ -69,7 +109,11 @@ function resetInputCanvas(canvas: HTMLCanvasElement) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-function drawInputStroke(canvas: HTMLCanvasElement, from: Point | null, to: Point) {
+function drawInputStroke(
+  canvas: HTMLCanvasElement,
+  from: Point | null,
+  to: Point,
+) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return;
 
@@ -151,8 +195,13 @@ function estimateConfidence(canvas: HTMLCanvasElement) {
   ];
 
   const raw = weights.map((digitWeights, digit) => {
-    const score = digitWeights.reduce((sum, weight, index) => sum + weight * features[index], 0);
-    return Math.exp(score * 2.2 + Math.sin((digit + 1) * 1.71 + ink.cx * 3.2) * 0.45);
+    const score = digitWeights.reduce(
+      (sum, weight, index) => sum + weight * features[index],
+      0,
+    );
+    return Math.exp(
+      score * 2.2 + Math.sin((digit + 1) * 1.71 + ink.cx * 3.2) * 0.45,
+    );
   });
   const total = raw.reduce((sum, value) => sum + value, 0);
   return raw.map((value) => value / total);
@@ -171,7 +220,14 @@ function drawLensTexture(
   ctx.save();
   circleMask(ctx, size);
 
-  const base = ctx.createRadialGradient(size * 0.42, size * 0.36, 10, size / 2, size / 2, size * 0.52);
+  const base = ctx.createRadialGradient(
+    size * 0.42,
+    size * 0.36,
+    10,
+    size / 2,
+    size / 2,
+    size * 0.52,
+  );
   base.addColorStop(0, "rgba(255, 255, 255, 0.32)");
   base.addColorStop(0.55, "rgba(185, 232, 238, 0.12)");
   base.addColorStop(1, "rgba(118, 176, 188, 0.04)");
@@ -212,7 +268,14 @@ function drawLensTexture(
     ctx.drawImage(source, -dx * 0.45, -dy * 0.45, size, size);
     ctx.restore();
   } else {
-    const idle = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size * 0.42);
+    const idle = ctx.createRadialGradient(
+      size / 2,
+      size / 2,
+      0,
+      size / 2,
+      size / 2,
+      size * 0.42,
+    );
     idle.addColorStop(0, "rgba(150, 214, 225, 0.08)");
     idle.addColorStop(1, "rgba(150, 214, 225, 0)");
     ctx.fillStyle = idle;
@@ -222,7 +285,11 @@ function drawLensTexture(
   ctx.restore();
 }
 
-function drawOutputTexture(canvas: HTMLCanvasElement, confidence: number[], hasInk: boolean) {
+function drawOutputTexture(
+  canvas: HTMLCanvasElement,
+  confidence: number[],
+  hasInk: boolean,
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const size = canvas.width;
@@ -232,7 +299,14 @@ function drawOutputTexture(canvas: HTMLCanvasElement, confidence: number[], hasI
 
   ctx.save();
   circleMask(ctx, size);
-  const paper = ctx.createRadialGradient(size * 0.45, size * 0.35, 20, size / 2, size / 2, size * 0.55);
+  const paper = ctx.createRadialGradient(
+    size * 0.45,
+    size * 0.35,
+    20,
+    size / 2,
+    size / 2,
+    size * 0.55,
+  );
   paper.addColorStop(0, "#ffffff");
   paper.addColorStop(0.72, "#eef4f5");
   paper.addColorStop(1, "#dfe8ea");
@@ -244,7 +318,14 @@ function drawOutputTexture(canvas: HTMLCanvasElement, confidence: number[], hasI
     const x = anchor.x * size;
     const y = anchor.y * size;
     const strength = hasInk ? confidence[digit] : 0.012;
-    const glow = ctx.createRadialGradient(x, y, 4, x, y, size * (0.08 + strength * 0.24));
+    const glow = ctx.createRadialGradient(
+      x,
+      y,
+      4,
+      x,
+      y,
+      size * (0.08 + strength * 0.24),
+    );
     glow.addColorStop(0, `rgba(56, 184, 220, ${0.36 + strength * 2.4})`);
     glow.addColorStop(0.35, `rgba(154, 224, 235, ${0.14 + strength * 0.95})`);
     glow.addColorStop(1, "rgba(154, 224, 235, 0)");
@@ -254,12 +335,12 @@ function drawOutputTexture(canvas: HTMLCanvasElement, confidence: number[], hasI
 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = "600 42px Inter, ui-sans-serif, system-ui";
+  ctx.font = "650 50px Inter, ui-sans-serif, system-ui";
   for (let digit = 0; digit < DIGITS; digit += 1) {
     const anchor = digitAnchors[digit];
     const x = anchor.x * size;
     const y = anchor.y * size;
-    ctx.fillStyle = "rgba(42, 58, 62, 0.76)";
+    ctx.fillStyle = "rgba(36, 52, 56, 0.9)";
     ctx.fillText(String(digit), x, y);
   }
 
@@ -288,11 +369,21 @@ function makeGlassMaterial(texture: THREE.Texture, opacity: number) {
   });
 }
 
-function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) => void): SceneState {
+function applyCamera(camera: THREE.PerspectiveCamera, config: CameraConfig) {
+  camera.position.set(config.position.x, config.position.y, config.position.z);
+  camera.fov = config.fov;
+  camera.lookAt(config.target.x, config.target.y, config.target.z);
+  camera.updateProjectionMatrix();
+}
+
+function createScene(
+  container: HTMLDivElement,
+  onInkChange: (hasInk: boolean) => void,
+  cameraConfig: CameraConfig,
+): SceneState {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.enabled = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor("#f4f7f8");
   container.appendChild(renderer.domElement);
@@ -301,16 +392,13 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
   scene.background = new THREE.Color("#f4f7f8");
 
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-  camera.position.set(-0.18, 1.36, 9.05);
-  camera.lookAt(0.02, -0.02, 0);
+  applyCamera(camera, cameraConfig);
 
   const ambient = new THREE.HemisphereLight("#ffffff", "#d8e4e7", 2.6);
   scene.add(ambient);
 
   const key = new THREE.DirectionalLight("#ffffff", 3.8);
   key.position.set(-2.7, 4.1, 3.8);
-  key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
   scene.add(key);
 
   const fill = new THREE.PointLight("#d9fbff", 12, 7);
@@ -323,7 +411,6 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
   });
   const wall = new THREE.Mesh(new THREE.PlaneGeometry(9.5, 5.3), wallMaterial);
   wall.position.set(0.3, 0, -1.18);
-  wall.receiveShadow = true;
   scene.add(wall);
 
   const shelf = new THREE.Mesh(
@@ -332,7 +419,6 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
   );
   shelf.rotation.x = -Math.PI / 2;
   shelf.position.set(0.3, -1.55, 0.35);
-  shelf.receiveShadow = true;
   scene.add(shelf);
 
   const inputCanvas = createCanvas(INPUT_SIZE);
@@ -341,10 +427,8 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
   const inputMaterial = makeGlassMaterial(inputTexture, 0.82);
   const circleGeometry = new THREE.CircleGeometry(0.52, 128);
   const inputMesh = new THREE.Mesh(circleGeometry, inputMaterial);
-  inputMesh.position.set(-3.22, 0, 0);
-  inputMesh.rotation.y = -0.28;
-  inputMesh.castShadow = true;
-  inputMesh.receiveShadow = true;
+  inputMesh.position.copy(pointOnAxis(SURFACE_STOPS[0]));
+  applySurfaceRotation(inputMesh);
   scene.add(inputMesh);
 
   const inputRim = new THREE.Mesh(
@@ -356,10 +440,10 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
     }),
   );
   inputRim.position.copy(inputMesh.position);
-  inputRim.rotation.copy(inputMesh.rotation);
+  inputRim.quaternion.copy(inputMesh.quaternion);
   scene.add(inputRim);
 
-  const lensCanvases = lensX.map(() => createCanvas());
+  const lensCanvases = lensStops.map(() => createCanvas());
   const lensTextures = lensCanvases.map((canvas) => {
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -369,11 +453,14 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
   lensTextures.forEach((texture, index) => {
     drawLensTexture(lensCanvases[index], inputCanvas, index + 1, false);
     texture.needsUpdate = true;
-    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.52, 160), makeGlassMaterial(texture, 0.54));
-    lens.position.set(lensX[index], Math.sin(index * 0.6) * 0.04, 0);
-    lens.rotation.y = -0.18 + index * 0.055;
-    lens.castShadow = true;
-    lens.receiveShadow = true;
+    const lens = new THREE.Mesh(
+      new THREE.CircleGeometry(0.52, 160),
+      makeGlassMaterial(texture, 0.54),
+    );
+    lens.position.copy(
+      pointOnAxis(lensStops[index], Math.sin(index * 0.6) * 0.035),
+    );
+    applySurfaceRotation(lens);
     scene.add(lens);
 
     const rim = new THREE.Mesh(
@@ -385,8 +472,7 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
       }),
     );
     rim.position.copy(lens.position);
-    rim.rotation.copy(lens.rotation);
-    rim.castShadow = true;
+    rim.quaternion.copy(lens.quaternion);
     scene.add(rim);
   });
 
@@ -404,10 +490,8 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
       side: THREE.FrontSide,
     }),
   );
-  output.position.set(2.85, 0, 0);
-  output.rotation.y = 0.23;
-  output.castShadow = true;
-  output.receiveShadow = true;
+  output.position.copy(pointOnAxis(SURFACE_STOPS[5]));
+  output.quaternion.copy(OUTPUT_ROTATION);
   scene.add(output);
 
   const outputRim = new THREE.Mesh(
@@ -419,8 +503,7 @@ function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) =
     }),
   );
   outputRim.position.copy(output.position);
-  outputRim.rotation.copy(output.rotation);
-  outputRim.castShadow = true;
+  outputRim.quaternion.copy(output.quaternion);
   scene.add(outputRim);
 
   return {
@@ -463,7 +546,20 @@ function resize(container: HTMLDivElement, state: SceneState) {
   state.camera.updateProjectionMatrix();
 }
 
-function pointOnInput(event: PointerEvent, container: HTMLDivElement, state: SceneState) {
+function readNumber(value: string, fallback: number) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+}
+
+function isDebugMode() {
+  return new URLSearchParams(window.location.search).get("debug") === "1";
+}
+
+function pointOnInput(
+  event: PointerEvent,
+  container: HTMLDivElement,
+  state: SceneState,
+) {
   const rect = container.getBoundingClientRect();
   state.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   state.pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
@@ -481,7 +577,8 @@ function pointOnInput(event: PointerEvent, container: HTMLDivElement, state: Sce
 
 function animate(state: SceneState) {
   for (let i = 0; i < DIGITS; i += 1) {
-    state.confidence[i] += (state.targetConfidence[i] - state.confidence[i]) * 0.08;
+    state.confidence[i] +=
+      (state.targetConfidence[i] - state.confidence[i]) * 0.08;
   }
   updateTextures(state);
   state.renderer.render(state.scene, state.camera);
@@ -494,6 +591,9 @@ export const OpticalBenchCanvas = forwardRef<
 >(function OpticalBenchCanvas({ onInkChange }, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<SceneState | null>(null);
+  const debug = useMemo(isDebugMode, []);
+  const [cameraConfig, setCameraConfig] =
+    useState<CameraConfig>(DEFAULT_CAMERA);
 
   useImperativeHandle(ref, () => ({
     clear: () => {
@@ -508,10 +608,33 @@ export const OpticalBenchCanvas = forwardRef<
     },
   }));
 
+  const updateCameraValue = useCallback(
+    (section: "position" | "target", axis: keyof Point3, value: string) => {
+      setCameraConfig((config) => ({
+        ...config,
+        [section]: {
+          ...config[section],
+          [axis]: readNumber(value, config[section][axis]),
+        },
+      }));
+    },
+    [],
+  );
+
+  const resetCamera = useCallback(() => {
+    setCameraConfig(DEFAULT_CAMERA);
+  }, []);
+
+  const copyCamera = useCallback(() => {
+    const value = `camera={ position:[${cameraConfig.position.x}, ${cameraConfig.position.y}, ${cameraConfig.position.z}], target:[${cameraConfig.target.x}, ${cameraConfig.target.y}, ${cameraConfig.target.z}], fov:${cameraConfig.fov} }`;
+    void navigator.clipboard?.writeText(value);
+    console.log(value);
+  }, [cameraConfig]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const state = createScene(container, onInkChange);
+    const state = createScene(container, onInkChange, cameraConfig);
     stateRef.current = state;
     resize(container, state);
     animate(state);
@@ -549,23 +672,108 @@ export const OpticalBenchCanvas = forwardRef<
     };
 
     window.addEventListener("resize", handleResize);
-    state.renderer.domElement.addEventListener("pointerdown", handlePointerDown);
-    state.renderer.domElement.addEventListener("pointermove", handlePointerMove);
+    state.renderer.domElement.addEventListener(
+      "pointerdown",
+      handlePointerDown,
+    );
+    state.renderer.domElement.addEventListener(
+      "pointermove",
+      handlePointerMove,
+    );
     state.renderer.domElement.addEventListener("pointerup", handlePointerUp);
-    state.renderer.domElement.addEventListener("pointercancel", handlePointerUp);
+    state.renderer.domElement.addEventListener(
+      "pointercancel",
+      handlePointerUp,
+    );
 
     return () => {
       window.cancelAnimationFrame(state.animationFrame);
       window.removeEventListener("resize", handleResize);
-      state.renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
-      state.renderer.domElement.removeEventListener("pointermove", handlePointerMove);
-      state.renderer.domElement.removeEventListener("pointerup", handlePointerUp);
-      state.renderer.domElement.removeEventListener("pointercancel", handlePointerUp);
+      state.renderer.domElement.removeEventListener(
+        "pointerdown",
+        handlePointerDown,
+      );
+      state.renderer.domElement.removeEventListener(
+        "pointermove",
+        handlePointerMove,
+      );
+      state.renderer.domElement.removeEventListener(
+        "pointerup",
+        handlePointerUp,
+      );
+      state.renderer.domElement.removeEventListener(
+        "pointercancel",
+        handlePointerUp,
+      );
       state.renderer.dispose();
       state.renderer.domElement.remove();
       stateRef.current = null;
     };
   }, [onInkChange]);
 
-  return <div ref={containerRef} className="bench-canvas" aria-label="Optical bench drawing surface" />;
+  useEffect(() => {
+    const state = stateRef.current;
+    if (!state) return;
+    applyCamera(state.camera, cameraConfig);
+  }, [cameraConfig]);
+
+  return (
+    <>
+      <div
+        ref={containerRef}
+        className="bench-canvas"
+        aria-label="Optical bench drawing surface"
+      />
+      {debug ? (
+        <aside className="camera-debug" aria-label="Camera debug controls">
+          <div className="camera-debug__row camera-debug__header">
+            <span>camera</span>
+            <button type="button" onClick={copyCamera}>
+              copy
+            </button>
+            <button type="button" onClick={resetCamera}>
+              reset
+            </button>
+          </div>
+          {(["position", "target"] as const).map((section) => (
+            <fieldset key={section}>
+              <legend>{section}</legend>
+              {(["x", "y", "z"] as const).map((axis) => (
+                <label key={axis}>
+                  <span>{axis}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={cameraConfig[section][axis]}
+                    onChange={(event) =>
+                      updateCameraValue(section, axis, event.target.value)
+                    }
+                  />
+                </label>
+              ))}
+            </fieldset>
+          ))}
+          <fieldset>
+            <legend>lens</legend>
+            <label>
+              <span>fov</span>
+              <input
+                type="number"
+                step="0.1"
+                min="10"
+                max="75"
+                value={cameraConfig.fov}
+                onChange={(event) =>
+                  setCameraConfig((config) => ({
+                    ...config,
+                    fov: readNumber(event.target.value, config.fov),
+                  }))
+                }
+              />
+            </label>
+          </fieldset>
+        </aside>
+      ) : null}
+    </>
+  );
 });
