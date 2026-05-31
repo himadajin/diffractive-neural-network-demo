@@ -37,11 +37,11 @@ Non-exhibition controls used to test and debug the Artwork, such as presets, dia
 _Avoid_: Viewer-facing controls
 
 **Camera Debug Controls**:
-A minimal Development Controls surface for adjusting and reading the Optical Bench camera position, target, and field of view. It may include direct camera manipulation, but the result should remain expressible as exact numeric parameters so visual composition can be discussed without adding exhibition-facing controls.
+A minimal Development Controls surface for adjusting and reading the Optical Bench camera position, target, and field of view. It edits the Artwork's current fixed camera rather than a separate debug-only camera; it may include direct camera manipulation, but the result should remain expressible as exact numeric parameters so visual composition can be discussed without adding exhibition-facing controls.
 _Avoid_: Exhibition camera navigation, viewer-facing orbit controls
 
 **Debug Interaction Priority**:
-The rule that Development Controls own ambiguous pointer or touch gestures while debug mode is active. Exhibition UI interactions may remain available where they do not conflict, but camera debugging takes precedence over viewer-facing bench interaction.
+The rule that Development Controls own ambiguous pointer or touch gestures while debug mode is active. Exhibition UI interactions may remain available where they do not conflict, and explicit Drawing Panel input remains Handwritten Input rather than camera manipulation.
 _Avoid_: Mixed viewer and developer gesture ownership, debug gestures as exhibition behavior
 
 **Hidden Debug Gesture**:
@@ -249,8 +249,14 @@ Domain expert: "No. Camera Debug Controls may exist behind a debug flag, but the
 Dev: "If a developer drags the camera in debug mode, should the numeric camera values still matter?"
 Domain expert: "Yes. Camera Debug Controls may support direct manipulation, but the resulting camera should still be readable and copyable as exact numeric values."
 
+Dev: "When debug mode is turned off, should the camera return to its previous responsive framing?"
+Domain expert: "No. Camera Debug Controls edit the Artwork's current fixed camera, so returning to normal mode should preserve the adjusted composition."
+
+Dev: "After a developer adjusts the camera, should resizing the presentation restore Responsive Fixed Camera framing?"
+Domain expert: "No. The adjusted camera remains the current fixed camera until it is explicitly reset."
+
 Dev: "In debug mode, should a canvas drag open or edit the Drawing Panel if it could also move the camera?"
-Domain expert: "No. Debug Interaction Priority means ambiguous canvas gestures belong to Camera Debug Controls while debug mode is active."
+Domain expert: "No. Debug Interaction Priority means ambiguous bench canvas gestures belong to Camera Debug Controls while debug mode is active, but explicit Drawing Panel input remains Handwritten Input."
 
 Dev: "How should touch-only devices enter debug mode without a keyboard?"
 Domain expert: "Through a Hidden Debug Gesture. It should be available to developers without appearing as Exhibition UI."

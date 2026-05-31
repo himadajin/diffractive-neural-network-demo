@@ -6,6 +6,7 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type SetStateAction,
 } from "react";
 import * as THREE from "three";
 import { CameraDebugControls } from "./opticalBench/CameraDebugControls";
@@ -201,12 +202,31 @@ export function OpticalBenchCanvas() {
     lastPinchDistance: null,
   });
   const hiddenDebugTapRef = useRef({ count: 0, firstTapAt: 0 });
+  const debugRef = useRef(false);
+  const cameraConfigRef = useRef<CameraConfig>(DEFAULT_CAMERA);
+  const cameraAdjustedRef = useRef(false);
   const supportsPointerEvents = useMemo(() => "PointerEvent" in window, []);
   const [debug, setDebug] = useState(readStoredDebugMode);
-  const [cameraConfig, setCameraConfig] =
-    useState<CameraConfig>(DEFAULT_CAMERA);
+  const [cameraConfig, setCameraConfig] = useState<CameraConfig>(() =>
+    getResponsiveCamera(window.innerWidth, window.innerHeight),
+  );
+  const [cameraAdjusted, setCameraAdjusted] = useState(false);
   const [panelOpen, setPanelOpen] = useState(shouldOpenPanelInitially);
   const [hasInk, setHasInk] = useState(false);
+
+  const setAdjustedCameraConfig = useCallback(
+    (config: SetStateAction<CameraConfig>) => {
+      cameraAdjustedRef.current = true;
+      setCameraAdjusted(true);
+      setCameraConfig((currentConfig) => {
+        const nextConfig =
+          typeof config === "function" ? config(currentConfig) : config;
+        cameraConfigRef.current = nextConfig;
+        return nextConfig;
+      });
+    },
+    [],
+  );
 
   const toggleDebug = useCallback(() => {
     setDebug((current) => {
@@ -221,18 +241,36 @@ export function OpticalBenchCanvas() {
     panelOpenRef.current = panelOpen;
   }, [panelOpen]);
 
+  useEffect(() => {
+    debugRef.current = debug;
+  }, [debug]);
+
+  useEffect(() => {
+    cameraConfigRef.current = cameraConfig;
+  }, [cameraConfig]);
+
+  useEffect(() => {
+    cameraAdjustedRef.current = cameraAdjusted;
+  }, [cameraAdjusted]);
+
   const resizeBench = useCallback(() => {
     const container = containerRef.current;
     const state = stateRef.current;
     if (!container || !state) return;
     resize(container, state);
-    if (!debug) {
-      applyCamera(
-        state.camera,
-        getResponsiveCamera(container.clientWidth, container.clientHeight),
-      );
+    if (cameraAdjustedRef.current) {
+      applyCamera(state.camera, cameraConfigRef.current);
+      return;
     }
-  }, [debug]);
+
+    const responsiveCamera = getResponsiveCamera(
+      container.clientWidth,
+      container.clientHeight,
+    );
+    cameraConfigRef.current = responsiveCamera;
+    setCameraConfig(responsiveCamera);
+    applyCamera(state.camera, responsiveCamera);
+  }, []);
 
   const clear = useCallback(() => {
     const state = stateRef.current;
@@ -342,6 +380,24 @@ export function OpticalBenchCanvas() {
     lastPanelPointRef.current = null;
   }, [supportsPointerEvents]);
 
+  const openDrawingPanel = useCallback(() => {
+    syncDrawingPanelCanvas(drawingCanvasRef.current, stateRef.current);
+    setPanelOpen(true);
+  }, []);
+
+  const resetCamera = useCallback(() => {
+    const container = containerRef.current;
+    const state = stateRef.current;
+    const responsiveCamera = container
+      ? getResponsiveCamera(container.clientWidth, container.clientHeight)
+      : DEFAULT_CAMERA;
+    cameraAdjustedRef.current = false;
+    cameraConfigRef.current = responsiveCamera;
+    setCameraAdjusted(false);
+    setCameraConfig(responsiveCamera);
+    if (state) applyCamera(state.camera, responsiveCamera);
+  }, []);
+
   const updateDebugCameraFromPointerMove = useCallback(
     (container: HTMLDivElement, event: PointerEvent) => {
       const debugPointerState = debugPointerStateRef.current;
@@ -358,7 +414,7 @@ export function OpticalBenchCanvas() {
         debugPointerState.lastPinchDistance = null;
         if (!previousPoint) return;
 
-        setCameraConfig((config) =>
+        setAdjustedCameraConfig((config) =>
           orbitCamera(
             config,
             point.x - previousPoint.x,
@@ -379,7 +435,7 @@ export function OpticalBenchCanvas() {
       debugPointerState.lastPinchDistance = pinchDistance;
       if (!previousCenter || previousDistance === null) return;
 
-      setCameraConfig((config) => {
+      setAdjustedCameraConfig((config) => {
         const panned = panCamera(
           config,
           center.x - previousCenter.x,
@@ -389,7 +445,7 @@ export function OpticalBenchCanvas() {
         return dollyCamera(panned, previousDistance - pinchDistance);
       });
     },
-    [],
+    [setAdjustedCameraConfig],
   );
 
   useEffect(() => {
@@ -398,8 +454,8 @@ export function OpticalBenchCanvas() {
     const state = createScene(
       container,
       setHasInk,
-      debug
-        ? DEFAULT_CAMERA
+      cameraAdjustedRef.current
+        ? cameraConfigRef.current
         : getResponsiveCamera(container.clientWidth, container.clientHeight),
     );
     stateRef.current = state;
@@ -409,7 +465,11 @@ export function OpticalBenchCanvas() {
 
     const handleResize = () => resizeBench();
     const handlePointerDown = (event: PointerEvent | MouseEvent) => {
-      if (debug && supportsPointerEvents && event instanceof PointerEvent) {
+      if (
+        debugRef.current &&
+        supportsPointerEvents &&
+        event instanceof PointerEvent
+      ) {
         event.preventDefault();
         debugPointerStateRef.current.pointers.set(
           event.pointerId,
@@ -418,7 +478,7 @@ export function OpticalBenchCanvas() {
         state.renderer.domElement.setPointerCapture(event.pointerId);
         return;
       }
-      if (debug) return;
+      if (debugRef.current) return;
       if (panelOpenRef.current) {
         setPanelOpen(false);
         return;
@@ -429,19 +489,23 @@ export function OpticalBenchCanvas() {
       setPanelOpen(true);
     };
     const handlePointerMove = (event: PointerEvent | MouseEvent) => {
-      if (debug && supportsPointerEvents && event instanceof PointerEvent) {
+      if (
+        debugRef.current &&
+        supportsPointerEvents &&
+        event instanceof PointerEvent
+      ) {
         event.preventDefault();
         updateDebugCameraFromPointerMove(container, event);
         return;
       }
-      if (debug) return;
+      if (debugRef.current) return;
       state.renderer.domElement.style.cursor =
         !panelOpenRef.current && hitsInputSurface(event, container, state)
           ? "pointer"
           : "default";
     };
     const handlePointerEnd = (event: PointerEvent) => {
-      if (!debug) return;
+      if (!debugRef.current) return;
       const debugPointerState = debugPointerStateRef.current;
       debugPointerState.pointers.delete(event.pointerId);
       debugPointerState.lastSinglePoint = null;
@@ -452,9 +516,11 @@ export function OpticalBenchCanvas() {
       }
     };
     const handleWheel = (event: WheelEvent) => {
-      if (!debug) return;
+      if (!debugRef.current) return;
       event.preventDefault();
-      setCameraConfig((config) => dollyCamera(config, event.deltaY * 0.1));
+      setAdjustedCameraConfig((config) =>
+        dollyCamera(config, event.deltaY * 0.1),
+      );
     };
     const downEvent = supportsPointerEvents ? "pointerdown" : "mousedown";
     const moveEvent = supportsPointerEvents ? "pointermove" : "mousemove";
@@ -499,8 +565,8 @@ export function OpticalBenchCanvas() {
       stateRef.current = null;
     };
   }, [
-    debug,
     resizeBench,
+    setAdjustedCameraConfig,
     supportsPointerEvents,
     updateDebugCameraFromPointerMove,
   ]);
@@ -508,8 +574,8 @@ export function OpticalBenchCanvas() {
   useEffect(() => {
     const state = stateRef.current;
     if (!state) return;
-    if (debug) applyCamera(state.camera, cameraConfig);
-  }, [cameraConfig, debug]);
+    if (debugRef.current) applyCamera(state.camera, cameraConfig);
+  }, [cameraConfig]);
 
   useEffect(() => {
     syncDrawingPanelCanvas(drawingCanvasRef.current, stateRef.current);
@@ -606,7 +672,9 @@ export function OpticalBenchCanvas() {
       {debug ? (
         <CameraDebugControls
           cameraConfig={cameraConfig}
-          setCameraConfig={setCameraConfig}
+          setCameraConfig={setAdjustedCameraConfig}
+          onOpenDrawingPanel={openDrawingPanel}
+          onResetCamera={resetCamera}
         />
       ) : null}
     </>
