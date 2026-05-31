@@ -169,12 +169,133 @@ function drawReliefRevealedCells(
       const phase =
         Math.sin((nx * 8.5 + layer) * Math.PI) +
         Math.cos((ny * 7.2 - layer * 0.6) * Math.PI);
-      const x =
-        origin + gx * cellSize + Math.cos(phase) * size * shift;
-      const y =
-        origin + gy * cellSize + Math.sin(phase) * size * shift;
+      const x = origin + gx * cellSize + Math.cos(phase) * size * shift;
+      const y = origin + gy * cellSize + Math.sin(phase) * size * shift;
       drawCell(ctx, x, y, cellSize, strength, layer, mode);
     }
+  }
+  ctx.restore();
+}
+
+function drawSmoothInputMask(
+  ctx: CanvasRenderingContext2D,
+  inputCanvas: HTMLCanvasElement,
+) {
+  const size = ctx.canvas.width;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "blur(5px)";
+  ctx.globalAlpha = 0.28;
+  ctx.drawImage(inputCanvas, 0, 0, size, size);
+  ctx.filter = "none";
+  ctx.globalAlpha = 1;
+  ctx.drawImage(inputCanvas, 0, 0, size, size);
+
+  ctx.globalCompositeOperation = "screen";
+  ctx.filter = "blur(2px)";
+  ctx.globalAlpha = 0.16;
+  ctx.drawImage(inputCanvas, 0, 0, size, size);
+  ctx.restore();
+}
+
+function drawFirstLensTransformation(
+  ctx: CanvasRenderingContext2D,
+  samples: InputLightSample[],
+  layer: number,
+) {
+  const size = ctx.canvas.width;
+  const gridSize = 28;
+  const { cellSize, origin } = cellGeometry(size, gridSize, 0.78);
+  const field = document.createElement("canvas");
+  field.width = gridSize;
+  field.height = gridSize;
+  const fieldCtx = field.getContext("2d");
+  if (!fieldCtx) return;
+
+  const fieldImage = fieldCtx.createImageData(gridSize, gridSize);
+  for (const sample of samples) {
+    if (sample.alpha < 0.045) continue;
+    const x = Math.max(
+      0,
+      Math.min(gridSize - 1, Math.floor(sample.nx * gridSize)),
+    );
+    const y = Math.max(
+      0,
+      Math.min(gridSize - 1, Math.floor(sample.ny * gridSize)),
+    );
+    const index = (y * gridSize + x) * 4;
+    const alpha = Math.round(clamp01(sample.alpha) * 255);
+    fieldImage.data[index] = 8;
+    fieldImage.data[index + 1] = 14;
+    fieldImage.data[index + 2] = 16;
+    fieldImage.data[index + 3] = Math.max(fieldImage.data[index + 3], alpha);
+  }
+  fieldCtx.putImageData(fieldImage, 0, 0);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.imageSmoothingEnabled = true;
+  ctx.filter = "blur(4px)";
+  ctx.globalAlpha = 0.26;
+  ctx.drawImage(
+    field,
+    origin,
+    origin,
+    cellSize * gridSize,
+    cellSize * gridSize,
+  );
+  ctx.filter = "blur(1.2px)";
+  ctx.globalAlpha = 0.34;
+  ctx.drawImage(
+    field,
+    origin,
+    origin,
+    cellSize * gridSize,
+    cellSize * gridSize,
+  );
+
+  ctx.filter = "none";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const sample of samples) {
+    if (sample.alpha < 0.08) continue;
+    const phase =
+      Math.sin((sample.nx * 8.5 + layer) * Math.PI) +
+      Math.cos((sample.ny * 7.2 - layer * 0.6) * Math.PI);
+    const x = origin + sample.nx * cellSize * gridSize;
+    const y = origin + sample.ny * cellSize * gridSize;
+    const driftX = Math.cos(phase) * cellSize * (0.45 + sample.alpha * 0.7);
+    const driftY =
+      Math.sin(phase * 0.82) * cellSize * (0.35 + sample.alpha * 0.6);
+    const endX = x + driftX;
+    const endY = y + driftY;
+
+    ctx.strokeStyle = `rgba(8, 14, 16, ${0.04 + sample.alpha * 0.13})`;
+    ctx.lineWidth = 1.2 + sample.alpha * 1.7;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(
+      x + Math.sin(phase) * cellSize * 0.5,
+      y + Math.cos(phase) * cellSize * 0.42,
+      endX,
+      endY,
+    );
+    ctx.stroke();
+
+    ctx.globalCompositeOperation = "screen";
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.14 + sample.alpha * 0.18})`;
+    ctx.lineWidth = 0.55 + sample.alpha * 0.75;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(
+      x + Math.sin(phase) * cellSize * 0.5,
+      y + Math.cos(phase) * cellSize * 0.42,
+      endX,
+      endY,
+    );
+    ctx.stroke();
+    ctx.globalCompositeOperation = "source-over";
   }
   ctx.restore();
 }
@@ -238,6 +359,7 @@ export function drawInputSurfaceTexture(
   canvas: HTMLCanvasElement,
   normalizedInput: Float32Array | null,
   hasInk: boolean,
+  inputMaskCanvas?: HTMLCanvasElement | null,
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -261,7 +383,11 @@ export function drawInputSurfaceTexture(
   ctx.fillRect(0, 0, size, size);
 
   if (hasInk && normalizedInput) {
-    drawReliefRevealedCells(ctx, normalizedInput, 0, 0.78, 0, "mask");
+    if (inputMaskCanvas) {
+      drawSmoothInputMask(ctx, inputMaskCanvas);
+    } else {
+      drawReliefRevealedCells(ctx, normalizedInput, 0, 0.78, 0, "mask");
+    }
     drawSurfaceInterference(ctx, size, 0, 1.45);
   } else {
     const idle = ctx.createRadialGradient(
@@ -567,14 +693,7 @@ export function drawLensTexture(
 
   if (hasInk) {
     if (layer === 1 && inputLightSamples.length > 0) {
-      const gridSize = 28;
-      const input = new Float32Array(gridSize * gridSize);
-      for (const sample of inputLightSamples) {
-        const x = Math.floor(sample.nx * gridSize);
-        const y = Math.floor(sample.ny * gridSize);
-        input[y * gridSize + x] = sample.alpha;
-      }
-      drawReliefRevealedCells(ctx, input, layer, 0.78, 0.0025, "mask");
+      drawFirstLensTransformation(ctx, inputLightSamples, layer);
     } else if (layer === 2) {
       drawCircuitLikeLightField(ctx, inputLightSamples, layer);
     } else if (layer === 3) {

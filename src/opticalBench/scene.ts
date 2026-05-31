@@ -230,6 +230,7 @@ export function updateTextures(state: SceneState) {
     state.inputSurfaceCanvas,
     state.normalizedInput,
     state.hasInk,
+    state.inputCanvas,
   );
   state.inputTexture.needsUpdate = true;
   state.lensCanvases.forEach((canvas, index) => {

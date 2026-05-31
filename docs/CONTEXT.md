@@ -89,24 +89,28 @@ The information-bearing light visible on the Input Surface and Relief Lens Layer
 _Avoid_: Pixelated lens, raw pasted input, texture resolution, UI preview
 
 **Luminous Cell Field**:
-A Projected Light Field whose visible information is carried by an array of glowing cells rather than by a pasted bitmap. On the Input Surface it can represent the same normalized input seen by the Classifier while still reading as light caught in glass; visible grid lines should not compete with the optical surface.
+A Projected Light Field whose visible information is carried by an array of glowing cells rather than by a pasted bitmap. It belongs to the Relief Lens Layers, where the Handwritten Input starts to transform into routed optical information; visible grid lines should not compete with the optical surface.
 _Avoid_: Pixel art sticker, sharp nearest-neighbor image, flat preview, drawn grid, deliberate cell spacing
 
 **Input Mask**:
-The dark, light-blocking appearance of the Handwritten Input as it enters the optical path. It should preserve the Drawing Panel's stable input position while reading as optical masking on glass, not as blue ink or a glowing digit.
-_Avoid_: Glowing handwriting, colored marker, UI ink, recentered display mask
+The dark, light-blocking appearance of the Handwritten Input as it enters the optical path on the Input Surface. It should preserve the Drawing Panel's stable, smooth hand-drawn shape while reading as optical masking on glass, not as blue ink, a glowing digit, or a normalized cell field.
+_Avoid_: Glowing handwriting, colored marker, UI ink, recentered display mask, pixelated input mask
 
 **Monochrome Light Field**:
-A Projected Light Field whose primary contrast is blocked darkness against transmitted white light. It may use subtle cool glass tints, but the optical information should read mainly through black, white, and gray values.
-_Avoid_: Blue-only propagation, colored feature map, neon light path
+A Projected Light Field whose primary contrast is blocked darkness against transmitted white light. The Input Surface may use strong dark masking, while Relief Lens Layers should reduce heavy black coverage and rely more on transmitted white light, pale reflection, and thin shadow traces. It may use subtle cool glass tints, but the optical information should read mainly through black, white, and gray values.
+_Avoid_: Blue-only propagation, colored feature map, neon light path, black pixel stamp
 
 **Relief-Revealed Cell Field**:
 A Luminous Cell Field whose cells appear to emerge from light interacting with glass relief, reflection, and subtle interference on the optical surface. The cells should not read as directly drawn squares with graphic edge treatment.
 _Avoid_: Softened pixel image, edge-faded cell, rounded pixel, visible cell border
 
 **Resolution Progression**:
-The visual change in Projected Light Field density across the Optical Bench: the input begins as a normalized low-resolution cell field, may expand into a finer circuit-like field, then compress toward candidate output regions. It is an artistic structure for optical readability and performance, not an explanation of the Classifier's internal layers.
+The visual change in Projected Light Field density across the Optical Bench: the Input Surface begins as a smooth Input Mask, the first Relief Lens Layer keeps the Handwritten Input legible while beginning optical transformation, later layers expand into a finer circuit-like field, gather into feature bundles, then split toward candidate output regions. It is an artistic structure for optical readability and performance, not an explanation of the Classifier's internal layers.
 _Avoid_: Neural-network layer diagram, exact CNN feature map, fixed-resolution pipeline
+
+**First Lens Transformation**:
+The first Relief Lens Layer's light field, where the Handwritten Input remains legible but begins to bend, branch, diffuse, and shift through the optical structure. It should not be a direct copy of the Input Mask or a pasted low-resolution preview.
+_Avoid_: Duplicate input surface, pixelated copy, unchanged mask, raw classifier grid
 
 **Circuit-Like Light Field**:
 A finer Projected Light Field where light appears to branch and organize along the Relief Lens Layer's fixed optical structure. It should read as light being routed through a surface, not as a higher-resolution copy of the Handwritten Input.
