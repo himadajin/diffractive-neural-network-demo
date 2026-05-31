@@ -1,7 +1,7 @@
 import * as ort from "onnxruntime-web";
 
 const DIGIT_COUNT = 10;
-const MODEL_SIZE = 28;
+export const MODEL_SIZE = 28;
 const TARGET_INK_SIZE = 20;
 const MIN_INK_ALPHA = 12;
 
@@ -34,7 +34,7 @@ function softmax(values: number[]) {
   return exp.map((value) => value / total);
 }
 
-function normalizeDigit(canvas: HTMLCanvasElement) {
+export function normalizeDigitInput(canvas: HTMLCanvasElement) {
   const source = canvas.getContext("2d", { willReadFrequently: true });
   if (!source) return null;
 
@@ -99,7 +99,7 @@ function normalizeDigit(canvas: HTMLCanvasElement) {
 }
 
 export async function classifyDigit(canvas: HTMLCanvasElement) {
-  const input = normalizeDigit(canvas);
+  const input = normalizeDigitInput(canvas);
   if (!input) return Array(DIGIT_COUNT).fill(0);
 
   const session = await getSession();

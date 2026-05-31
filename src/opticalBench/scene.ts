@@ -12,6 +12,7 @@ import {
 import { createCanvas } from "./canvas";
 import { smoothConfidence } from "./confidence";
 import {
+  drawInputSurfaceTexture,
   drawLensBaseTexture,
   drawLensTexture,
   drawOutputTexture,
@@ -99,7 +100,9 @@ export function createScene(
   scene.add(shelf);
 
   const inputCanvas = createCanvas(INPUT_SIZE);
-  const inputTexture = new THREE.CanvasTexture(inputCanvas);
+  const inputSurfaceCanvas = createCanvas(INPUT_SIZE);
+  drawInputSurfaceTexture(inputSurfaceCanvas, null, false);
+  const inputTexture = new THREE.CanvasTexture(inputSurfaceCanvas);
   inputTexture.colorSpace = THREE.SRGBColorSpace;
   const inputMaterial = makeGlassMaterial(inputTexture, 0.82);
   const circleGeometry = new THREE.CircleGeometry(INPUT_SURFACE_RADIUS, 128);
@@ -201,8 +204,10 @@ export function createScene(
     pointer: new THREE.Vector2(),
     inputMesh,
     inputCanvas,
+    inputSurfaceCanvas,
     inputTexture,
     inputLightSamples: [],
+    normalizedInput: null,
     textureDirty: false,
     lensBaseCanvases,
     lensCanvases,
@@ -221,6 +226,13 @@ export function createScene(
 }
 
 export function updateTextures(state: SceneState) {
+  drawInputSurfaceTexture(
+    state.inputSurfaceCanvas,
+    state.normalizedInput,
+    state.hasInk,
+    state.inputCanvas,
+  );
+  state.inputTexture.needsUpdate = true;
   state.lensCanvases.forEach((canvas, index) => {
     drawLensTexture(
       canvas,
