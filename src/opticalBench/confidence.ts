@@ -62,10 +62,8 @@ export function visualFallbackConfidence(canvas: HTMLCanvasElement) {
   return scores.map((score) => score / total);
 }
 
-export function requestClassification(state: SceneState) {
-  const requestId = state.classificationRequestId + 1;
-  state.classificationRequestId = requestId;
-  state.targetConfidence = visualFallbackConfidence(state.inputCanvas);
+function runClassification(state: SceneState, requestId: number) {
+  state.classificationInFlight = true;
   void classifyDigit(state.inputCanvas)
     .then((confidence) => {
       if (state.classificationRequestId !== requestId || !state.hasInk) return;
@@ -75,7 +73,24 @@ export function requestClassification(state: SceneState) {
     })
     .catch((error: unknown) => {
       console.warn("Digit classifier failed", error);
+    })
+    .finally(() => {
+      state.classificationInFlight = false;
+      if (!state.classificationQueued || !state.hasInk) return;
+      state.classificationQueued = false;
+      requestClassification(state);
     });
+}
+
+export function requestClassification(state: SceneState) {
+  const requestId = state.classificationRequestId + 1;
+  state.classificationRequestId = requestId;
+  state.targetConfidence = visualFallbackConfidence(state.inputCanvas);
+  if (state.classificationInFlight) {
+    state.classificationQueued = true;
+    return;
+  }
+  runClassification(state, requestId);
 }
 
 export function smoothConfidence(state: SceneState) {

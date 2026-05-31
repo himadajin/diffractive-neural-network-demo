@@ -200,6 +200,8 @@ export function createScene(
     confidence: Array(DIGITS).fill(0),
     targetConfidence: Array(DIGITS).fill(0),
     classificationRequestId: 0,
+    classificationInFlight: false,
+    classificationQueued: false,
     hasInk: false,
     activePointerId: null,
     lastInkPoint: null,

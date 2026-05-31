@@ -33,6 +33,8 @@ export type SceneState = {
   confidence: number[];
   targetConfidence: number[];
   classificationRequestId: number;
+  classificationInFlight: boolean;
+  classificationQueued: boolean;
   hasInk: boolean;
   activePointerId: number | null;
   lastInkPoint: Point | null;

@@ -45,6 +45,7 @@ export const OpticalBenchCanvas = forwardRef<
       state.inputTexture.needsUpdate = true;
       state.hasInk = false;
       state.classificationRequestId += 1;
+      state.classificationQueued = false;
       state.targetConfidence = Array(DIGITS).fill(0);
       state.lastInkPoint = null;
       state.onInkChange(false);
@@ -54,7 +55,7 @@ export const OpticalBenchCanvas = forwardRef<
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const state = createScene(container, onInkChange, cameraConfig);
+    const state = createScene(container, onInkChange, DEFAULT_CAMERA);
     stateRef.current = state;
     resize(container, state);
     animate(state);
