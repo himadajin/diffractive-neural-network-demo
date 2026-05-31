@@ -25,6 +25,14 @@ There is no lint or test command yet. Do not invent one.
   build configuration change.
 - Run `npm run format` after broad edits or when formatting changed files.
 
+## Formatting
+
+- Use the repository Prettier configuration in `.prettierrc.json`.
+- Do not format generated or binary assets ignored by `.prettierignore`, including
+  `public/ort/`, `public/models/`, and `dist/`.
+- Do not introduce a separate formatter or competing style configuration unless
+  the project explicitly adopts a new tool.
+
 ## Visual QA
 
 For UI, Three.js, Canvas, camera, classifier, or visual-behavior changes, verify

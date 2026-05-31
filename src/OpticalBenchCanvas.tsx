@@ -191,14 +191,14 @@ function visualFallbackConfidence(canvas: HTMLCanvasElement) {
   const scores = [
     0.55 + Math.abs(aspect - 0.72) * -0.28 + ink * 0.0008,
     0.75 + center / ink + Math.max(0, 0.42 - aspect),
-    0.45 + right / ink * 0.7 + Math.max(0, 0.62 - cy) * 0.45,
-    0.44 + right / ink * 0.52 + bottom / ink * 0.28,
-    0.4 + Math.max(0, 0.72 - aspect) + right / ink * 0.38,
-    0.4 + left / ink * 0.35 + bottom / ink * 0.33,
-    0.42 + left / ink * 0.45 + bottom / ink * 0.42,
-    0.48 + top / ink * 0.45 + Math.max(0, 0.52 - cy),
-    0.58 + Math.abs(aspect - 0.68) * -0.2 + center / ink * 0.2,
-    0.47 + top / ink * 0.38 + right / ink * 0.32,
+    0.45 + (right / ink) * 0.7 + Math.max(0, 0.62 - cy) * 0.45,
+    0.44 + (right / ink) * 0.52 + (bottom / ink) * 0.28,
+    0.4 + Math.max(0, 0.72 - aspect) + (right / ink) * 0.38,
+    0.4 + (left / ink) * 0.35 + (bottom / ink) * 0.33,
+    0.42 + (left / ink) * 0.45 + (bottom / ink) * 0.42,
+    0.48 + (top / ink) * 0.45 + Math.max(0, 0.52 - cy),
+    0.58 + Math.abs(aspect - 0.68) * -0.2 + (center / ink) * 0.2,
+    0.47 + (top / ink) * 0.38 + (right / ink) * 0.32,
   ].map((score, digit) => Math.exp(score * 2.4 + Math.sin(cx * 6 + digit)));
 
   const total = scores.reduce((sum, value) => sum + value, 0);
