@@ -2,7 +2,7 @@
 
 An interactive visual artwork themed around optical diffraction and neural networks.
 
-This is not a physically rigorous diffractive neural network simulator. The current Phase 1 prototype focuses on the visual behavior: a handwritten digit is drawn onto the first optical surface, light-like patterns pass through four fixed relief glass layers, and a labelled detector array glows with provisional confidence values.
+This is not a physically rigorous diffractive neural network simulator. The current prototype focuses on the visual behavior: a handwritten digit is drawn onto the first circular optical surface, light-like patterns pass through four fixed relief lens layers, and an opaque output screen marked with digits glows with provisional confidence values.
 
 ## Run
 
@@ -16,12 +16,12 @@ Then open the local Vite URL printed in the terminal.
 ## Current Prototype
 
 - Vite + React + TypeScript
-- Canvas 2D rendering
+- Fixed-camera Three.js scene
 - Desktop landscape composition
-- Handwritten input directly on the first optical surface
-- Four fixed relief glass layers
-- Cool white to cyan light palette with subtle spectral accents
-- Detector array labelled 0 through 9
+- Handwritten input directly on the first circular optical surface
+- Four fixed circular relief lens layers
+- Quiet white environment with cool white to cyan light accents
+- Opaque output screen with upright 0 through 9 marks arranged around a circle
 - Provisional confidence glow for Phase 1 visual testing
 
 ## Implementation Note

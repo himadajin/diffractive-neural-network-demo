@@ -2,9 +2,9 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
 } from "react";
+import * as THREE from "three";
 
 export type OpticalBenchHandle = {
   clear: () => void;
@@ -15,137 +15,72 @@ type Point = {
   y: number;
 };
 
-type Plane = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  skew: number;
-  depth: number;
-};
-
-type DrawState = {
-  activePointerId: number | null;
-  lastPoint: Point | null;
-  hasInk: boolean;
+type SceneState = {
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  raycaster: THREE.Raycaster;
+  pointer: THREE.Vector2;
+  inputMesh: THREE.Mesh;
+  inputCanvas: HTMLCanvasElement;
+  inputTexture: THREE.CanvasTexture;
+  lensCanvases: HTMLCanvasElement[];
+  lensTextures: THREE.CanvasTexture[];
+  outputCanvas: HTMLCanvasElement;
+  outputTexture: THREE.CanvasTexture;
+  confidence: number[];
   targetConfidence: number[];
-  smoothConfidence: number[];
+  hasInk: boolean;
+  activePointerId: number | null;
+  lastInkPoint: Point | null;
+  animationFrame: number;
+  onInkChange: (hasInk: boolean) => void;
 };
 
-const VIEW_W = 1440;
-const VIEW_H = 810;
-const INPUT_W = 180;
-const INPUT_H = 240;
-const PATTERN_SIZE = 160;
+const INPUT_SIZE = 512;
+const TEXTURE_SIZE = 512;
+const DIGITS = 10;
 
-const planes: Plane[] = [
-  { x: 194, y: 272, w: 180, h: 240, skew: -34, depth: 0 },
-  { x: 492, y: 246, w: 132, h: 290, skew: -28, depth: 1 },
-  { x: 667, y: 238, w: 132, h: 306, skew: -20, depth: 2 },
-  { x: 842, y: 238, w: 132, h: 306, skew: -12, depth: 3 },
-  { x: 1017, y: 246, w: 132, h: 290, skew: -5, depth: 4 },
-  { x: 1238, y: 270, w: 122, h: 246, skew: 8, depth: 5 },
-];
+const lensX = [-1.95, -0.85, 0.25, 1.35];
+const digitAnchors = Array.from({ length: DIGITS }, (_, index) => {
+  const angle = -Math.PI / 2 + (index / DIGITS) * Math.PI * 2;
+  return {
+    x: 0.5 + Math.cos(angle) * 0.31,
+    y: 0.5 + Math.sin(angle) * 0.31,
+  };
+});
 
-const digitAnchors: Point[] = [
-  { x: 0.5, y: 0.22 },
-  { x: 0.5, y: 0.32 },
-  { x: 0.5, y: 0.42 },
-  { x: 0.5, y: 0.52 },
-  { x: 0.5, y: 0.62 },
-  { x: 0.5, y: 0.72 },
-  { x: 0.5, y: 0.82 },
-  { x: 0.28, y: 0.5 },
-  { x: 0.72, y: 0.5 },
-  { x: 0.5, y: 0.5 },
-];
-
-function makeCanvas(width: number, height: number) {
+function createCanvas(size = TEXTURE_SIZE) {
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = size;
+  canvas.height = size;
   return canvas;
 }
 
-function planeCorners(plane: Plane): [Point, Point, Point, Point] {
-  return [
-    { x: plane.x + plane.skew, y: plane.y },
-    { x: plane.x + plane.skew + plane.w, y: plane.y },
-    { x: plane.x - plane.skew + plane.w, y: plane.y + plane.h },
-    { x: plane.x - plane.skew, y: plane.y + plane.h },
-  ];
-}
-
-function tracePlane(ctx: CanvasRenderingContext2D, plane: Plane) {
-  const [a, b, c, d] = planeCorners(plane);
+function circleMask(ctx: CanvasRenderingContext2D, size: number) {
   ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.lineTo(c.x, c.y);
-  ctx.lineTo(d.x, d.y);
-  ctx.closePath();
+  ctx.arc(size / 2, size / 2, size * 0.48, 0, Math.PI * 2);
+  ctx.clip();
 }
 
-function planeCenter(plane: Plane): Point {
-  return {
-    x: plane.x + plane.w / 2,
-    y: plane.y + plane.h / 2,
-  };
-}
-
-function mapToPlane(point: Point, plane: Plane): Point | null {
-  const [a, b, , d] = planeCorners(plane);
-  const vx = b.x - a.x;
-  const vy = b.y - a.y;
-  const ux = d.x - a.x;
-  const uy = d.y - a.y;
-  const px = point.x - a.x;
-  const py = point.y - a.y;
-  const det = vx * uy - vy * ux;
-  if (Math.abs(det) < 0.001) return null;
-
-  const s = (px * uy - py * ux) / det;
-  const t = (vx * py - vy * px) / det;
-  if (s < 0 || s > 1 || t < 0 || t > 1) return null;
-
-  return { x: s * INPUT_W, y: t * INPUT_H };
-}
-
-function setupCanvasSize(canvas: HTMLCanvasElement) {
-  const rect = canvas.getBoundingClientRect();
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const width = Math.max(1, Math.floor(rect.width * dpr));
-  const height = Math.max(1, Math.floor(rect.height * dpr));
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas 2D context is unavailable.");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { ctx, width: rect.width, height: rect.height };
-}
-
-function clearDrawing(drawCanvas: HTMLCanvasElement) {
-  const ctx = drawCanvas.getContext("2d", { willReadFrequently: true });
+function resetInputCanvas(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return;
-  ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-function drawInkStroke(
-  drawCanvas: HTMLCanvasElement,
-  from: Point | null,
-  to: Point,
-) {
-  const ctx = drawCanvas.getContext("2d", { willReadFrequently: true });
+function drawInputStroke(canvas: HTMLCanvasElement, from: Point | null, to: Point) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return;
+
   ctx.save();
+  circleMask(ctx, canvas.width);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgba(245, 255, 255, 0.96)";
-  ctx.shadowColor = "rgba(145, 238, 255, 0.55)";
-  ctx.shadowBlur = 10;
-  ctx.lineWidth = 18;
+  ctx.strokeStyle = "rgba(27, 128, 150, 0.82)";
+  ctx.shadowColor = "rgba(34, 185, 215, 0.45)";
+  ctx.shadowBlur = 18;
+  ctx.lineWidth = 38;
   ctx.beginPath();
   ctx.moveTo(from?.x ?? to.x, from?.y ?? to.y);
   ctx.lineTo(to.x, to.y);
@@ -153,502 +88,484 @@ function drawInkStroke(
   ctx.restore();
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D) {
-  const gradient = ctx.createRadialGradient(760, 350, 90, 760, 390, 810);
-  gradient.addColorStop(0, "#10252b");
-  gradient.addColorStop(0.48, "#071114");
-  gradient.addColorStop(1, "#020405");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-
-  const table = ctx.createLinearGradient(0, 610, 0, VIEW_H);
-  table.addColorStop(0, "rgba(42, 54, 56, 0.26)");
-  table.addColorStop(1, "rgba(2, 4, 5, 0.8)");
-  ctx.fillStyle = table;
-  ctx.fillRect(0, 610, VIEW_W, 200);
-}
-
-function drawGlassBody(ctx: CanvasRenderingContext2D, plane: Plane, index: number) {
-  tracePlane(ctx, plane);
-  const glass = ctx.createLinearGradient(plane.x, plane.y, plane.x + plane.w, plane.y + plane.h);
-  glass.addColorStop(0, "rgba(200, 252, 255, 0.05)");
-  glass.addColorStop(0.45, "rgba(220, 255, 255, 0.14)");
-  glass.addColorStop(1, "rgba(91, 183, 200, 0.05)");
-  ctx.fillStyle = glass;
-  ctx.fill();
-
-  tracePlane(ctx, plane);
-  ctx.lineWidth = index === 0 ? 2.4 : 1.8;
-  ctx.strokeStyle = index === 0 ? "rgba(215, 255, 255, 0.72)" : "rgba(175, 247, 255, 0.48)";
-  ctx.shadowColor = "rgba(128, 232, 255, 0.28)";
-  ctx.shadowBlur = 18;
-  ctx.stroke();
-
-  ctx.save();
-  tracePlane(ctx, plane);
-  ctx.clip();
-  ctx.globalAlpha = index === 0 ? 0.16 : 0.28;
-  ctx.strokeStyle = "rgba(223, 255, 255, 0.42)";
-  ctx.lineWidth = 0.9;
-  for (let i = 0; i < 18; i += 1) {
-    const y = plane.y + 18 + i * 16 + Math.sin(i * 1.7 + index) * 5;
-    ctx.beginPath();
-    for (let x = plane.x - 52; x < plane.x + plane.w + 58; x += 8) {
-      const wave =
-        Math.sin(x * 0.035 + i * 0.65 + index * 1.8) * 4 +
-        Math.sin(x * 0.071 + index * 2.1) * 2;
-      if (x === plane.x - 52) ctx.moveTo(x, y + wave);
-      else ctx.lineTo(x, y + wave);
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawInputOnPlane(
-  ctx: CanvasRenderingContext2D,
-  plane: Plane,
-  drawCanvas: HTMLCanvasElement,
-  hasInk: boolean,
-) {
-  ctx.save();
-  tracePlane(ctx, plane);
-  ctx.clip();
-  ctx.globalCompositeOperation = "lighter";
-
-  if (hasInk) {
-    ctx.globalAlpha = 0.92;
-    ctx.drawImage(drawCanvas, plane.x - plane.skew, plane.y, plane.w, plane.h);
-    ctx.filter = "blur(8px)";
-    ctx.globalAlpha = 0.46;
-    ctx.drawImage(drawCanvas, plane.x - plane.skew - 4, plane.y - 4, plane.w + 8, plane.h + 8);
-    ctx.filter = "none";
-  } else {
-    const idle = ctx.createRadialGradient(
-      plane.x + plane.w * 0.5,
-      plane.y + plane.h * 0.48,
-      8,
-      plane.x + plane.w * 0.5,
-      plane.y + plane.h * 0.5,
-      120,
-    );
-    idle.addColorStop(0, "rgba(190, 248, 255, 0.1)");
-    idle.addColorStop(1, "rgba(190, 248, 255, 0)");
-    ctx.fillStyle = idle;
-    ctx.fillRect(plane.x - 24, plane.y - 24, plane.w + 48, plane.h + 48);
-  }
-  ctx.restore();
-}
-
-function seedNoise(x: number, y: number, layer: number) {
-  const v = Math.sin(x * 12.9898 + y * 78.233 + layer * 41.17) * 43758.5453;
-  return v - Math.floor(v);
-}
-
-function renderPattern(
-  target: HTMLCanvasElement,
-  drawCanvas: HTMLCanvasElement,
-  layer: number,
-  hasInk: boolean,
-) {
-  const ctx = target.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return;
-  ctx.clearRect(0, 0, target.width, target.height);
-
-  if (!hasInk) {
-    const idle = ctx.createRadialGradient(80, 80, 4, 80, 80, 86);
-    idle.addColorStop(0, "rgba(202, 255, 255, 0.2)");
-    idle.addColorStop(1, "rgba(202, 255, 255, 0)");
-    ctx.fillStyle = idle;
-    ctx.fillRect(0, 0, target.width, target.height);
-    return;
-  }
-
-  const sample = makeCanvas(PATTERN_SIZE, PATTERN_SIZE);
-  const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
-  if (!sampleCtx) return;
-  sampleCtx.drawImage(drawCanvas, 0, 0, PATTERN_SIZE, PATTERN_SIZE);
-  const input = sampleCtx.getImageData(0, 0, PATTERN_SIZE, PATTERN_SIZE).data;
-  const output = ctx.createImageData(PATTERN_SIZE, PATTERN_SIZE);
-
-  for (let y = 0; y < PATTERN_SIZE; y += 1) {
-    for (let x = 0; x < PATTERN_SIZE; x += 1) {
-      const nx = x / PATTERN_SIZE - 0.5;
-      const ny = y / PATTERN_SIZE - 0.5;
-      const radius = Math.hypot(nx, ny);
-      const angle = Math.atan2(ny, nx);
-      const warp = layer * 7.5;
-      const sx = Math.max(
-        0,
-        Math.min(
-          PATTERN_SIZE - 1,
-          Math.round(x + Math.sin(angle * (layer + 2) + radius * 19) * warp),
-        ),
-      );
-      const sy = Math.max(
-        0,
-        Math.min(
-          PATTERN_SIZE - 1,
-          Math.round(y + Math.cos(angle * (layer + 1) - radius * 17) * warp),
-        ),
-      );
-      const source = input[(sy * PATTERN_SIZE + sx) * 4 + 3] / 255;
-      const ripple = 0.5 + 0.5 * Math.sin(radius * (35 + layer * 18) - angle * (layer + 1));
-      const fringe = 0.5 + 0.5 * Math.sin((nx * 42 - ny * 26) * (0.45 + layer * 0.18));
-      const speckle = seedNoise(x, y, layer);
-      const gather =
-        layer < 4
-          ? 1
-          : Math.max(
-              0,
-              1.1 -
-                Math.min(
-                  ...digitAnchors.map((anchor) =>
-                    Math.hypot(x / PATTERN_SIZE - anchor.x, y / PATTERN_SIZE - anchor.y),
-                  ),
-                ) *
-                  5.4,
-            );
-      const glow = Math.min(
-        1,
-        source * (0.42 + ripple * 0.34 + fringe * 0.28) +
-          Math.pow(source, 0.5) * speckle * 0.18 +
-          gather * source * 0.55,
-      );
-      const i = (y * PATTERN_SIZE + x) * 4;
-      output.data[i] = 150 + Math.round(glow * 105);
-      output.data[i + 1] = 225 + Math.round(glow * 30);
-      output.data[i + 2] = 255;
-      output.data[i + 3] = Math.round(Math.min(1, glow * (0.2 + layer * 0.12)) * 255);
-    }
-  }
-
-  ctx.putImageData(output, 0, 0);
-  ctx.globalCompositeOperation = "lighter";
-  ctx.filter = `blur(${2 + layer}px)`;
-  ctx.globalAlpha = 0.58;
-  ctx.drawImage(target, 0, 0);
-  ctx.filter = "none";
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = "source-over";
-}
-
-function drawPatternOnPlane(
-  ctx: CanvasRenderingContext2D,
-  plane: Plane,
-  pattern: HTMLCanvasElement,
-  layer: number,
-) {
-  ctx.save();
-  tracePlane(ctx, plane);
-  ctx.clip();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.78;
-  ctx.drawImage(pattern, plane.x - plane.skew, plane.y, plane.w, plane.h);
-  ctx.filter = `blur(${4 + layer}px)`;
-  ctx.globalAlpha = 0.32;
-  ctx.drawImage(pattern, plane.x - plane.skew - 7, plane.y - 7, plane.w + 14, plane.h + 14);
-  ctx.restore();
-}
-
-function drawGuidingBeam(ctx: CanvasRenderingContext2D, from: Plane, to: Plane, power: number) {
-  const a = planeCenter(from);
-  const b = planeCenter(to);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-  gradient.addColorStop(0, `rgba(134, 236, 255, ${0.02 + power * 0.06})`);
-  gradient.addColorStop(0.5, `rgba(238, 255, 255, ${0.05 + power * 0.12})`);
-  gradient.addColorStop(1, `rgba(134, 236, 255, ${0.02 + power * 0.06})`);
-  ctx.strokeStyle = gradient;
-  ctx.lineCap = "round";
-  for (let i = -2; i <= 2; i += 1) {
-    ctx.lineWidth = 2.5 - Math.abs(i) * 0.25;
-    ctx.beginPath();
-    ctx.moveTo(a.x + i * 5, a.y - 62 + i * 8);
-    ctx.bezierCurveTo(
-      a.x + 95,
-      a.y - 48 + i * 11,
-      b.x - 95,
-      b.y - 46 - i * 6,
-      b.x + i * 4,
-      b.y - 52 - i * 7,
-    );
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function measureInk(drawCanvas: HTMLCanvasElement) {
-  const ctx = drawCanvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
-  const image = ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height).data;
-  let mass = 0;
-  let cx = 0;
-  let cy = 0;
-  let left = drawCanvas.width;
+function measureInk(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return { amount: 0, cx: 0.5, cy: 0.5, verticality: 0, openness: 0 };
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let amount = 0;
+  let sx = 0;
+  let sy = 0;
+  let left = 0;
   let right = 0;
-  let top = drawCanvas.height;
+  let top = 0;
   let bottom = 0;
 
-  for (let y = 0; y < drawCanvas.height; y += 4) {
-    for (let x = 0; x < drawCanvas.width; x += 4) {
-      const alpha = image[(y * drawCanvas.width + x) * 4 + 3] / 255;
-      if (alpha <= 0.04) continue;
-      mass += alpha;
-      cx += x * alpha;
-      cy += y * alpha;
-      left = Math.min(left, x);
-      right = Math.max(right, x);
-      top = Math.min(top, y);
-      bottom = Math.max(bottom, y);
+  for (let y = 0; y < canvas.height; y += 6) {
+    for (let x = 0; x < canvas.width; x += 6) {
+      const alpha = data[(y * canvas.width + x) * 4 + 3] / 255;
+      if (alpha < 0.02) continue;
+      amount += alpha;
+      sx += x * alpha;
+      sy += y * alpha;
+      if (x < canvas.width * 0.42) left += alpha;
+      if (x > canvas.width * 0.58) right += alpha;
+      if (y < canvas.height * 0.38) top += alpha;
+      if (y > canvas.height * 0.62) bottom += alpha;
     }
   }
 
-  if (mass <= 0) return null;
-  cx /= mass;
-  cy /= mass;
-  const width = Math.max(1, right - left);
-  const height = Math.max(1, bottom - top);
-  return {
-    mass,
-    cx: cx / drawCanvas.width,
-    cy: cy / drawCanvas.height,
-    aspect: width / height,
-    fill: mass / ((width * height) / 16),
-    vertical: height / drawCanvas.height,
-  };
+  if (amount <= 0) {
+    return { amount: 0, cx: 0.5, cy: 0.5, verticality: 0, openness: 0 };
+  }
+
+  const cx = sx / amount / canvas.width;
+  const cy = sy / amount / canvas.height;
+  const verticality = Math.abs(top - bottom) / amount;
+  const openness = Math.abs(left - right) / amount;
+  return { amount, cx, cy, verticality, openness };
 }
 
-function estimateConfidence(drawCanvas: HTMLCanvasElement) {
-  const features = measureInk(drawCanvas);
-  if (!features) return Array.from({ length: 10 }, () => 0.04);
+function estimateConfidence(canvas: HTMLCanvasElement) {
+  const ink = measureInk(canvas);
+  if (ink.amount <= 0) return Array(DIGITS).fill(0);
 
-  const raw = [
-    0.56 + Math.abs(features.aspect - 0.8) * -0.28 + features.fill * 0.05,
-    0.5 + (features.aspect < 0.48 ? 0.38 : -0.1) + features.vertical * 0.12,
-    0.45 + (features.cy < 0.52 ? 0.12 : 0) + Math.abs(features.aspect - 0.76) * -0.18,
-    0.48 + (features.cx > 0.5 ? 0.13 : 0) + Math.abs(features.aspect - 0.72) * -0.16,
-    0.4 + (features.cx < 0.5 ? 0.16 : 0) + (features.aspect > 0.7 ? 0.08 : 0),
-    0.46 + (features.cy > 0.48 ? 0.12 : 0) + Math.abs(features.aspect - 0.7) * -0.18,
-    0.42 + (features.cy > 0.54 ? 0.2 : 0) + features.fill * 0.14,
-    0.44 + (features.aspect < 0.56 ? 0.18 : 0) + (features.cy < 0.5 ? 0.08 : 0),
-    0.54 + features.fill * 0.2 + Math.abs(features.aspect - 0.68) * -0.18,
-    0.46 + (features.cx > 0.5 ? 0.1 : 0) + (features.cy < 0.5 ? 0.1 : 0),
+  const features = [
+    Math.abs(ink.cx - 0.5),
+    ink.cy,
+    ink.verticality,
+    ink.openness,
+    Math.min(1, ink.amount / 620),
   ];
 
-  const max = Math.max(...raw);
-  const exp = raw.map((value) => Math.exp((value - max) * 7));
-  const sum = exp.reduce((total, value) => total + value, 0);
-  return exp.map((value) => value / sum);
+  const weights = [
+    [0.12, 0.58, 0.22, 0.17, 0.62],
+    [0.03, 0.46, 0.88, 0.2, 0.32],
+    [0.52, 0.34, 0.42, 0.73, 0.54],
+    [0.42, 0.52, 0.48, 0.64, 0.58],
+    [0.3, 0.42, 0.76, 0.47, 0.45],
+    [0.48, 0.58, 0.37, 0.69, 0.61],
+    [0.55, 0.64, 0.45, 0.53, 0.7],
+    [0.16, 0.25, 0.82, 0.25, 0.34],
+    [0.28, 0.5, 0.36, 0.22, 0.86],
+    [0.38, 0.38, 0.44, 0.58, 0.72],
+  ];
+
+  const raw = weights.map((digitWeights, digit) => {
+    const score = digitWeights.reduce((sum, weight, index) => sum + weight * features[index], 0);
+    return Math.exp(score * 2.2 + Math.sin((digit + 1) * 1.71 + ink.cx * 3.2) * 0.45);
+  });
+  const total = raw.reduce((sum, value) => sum + value, 0);
+  return raw.map((value) => value / total);
 }
 
-function drawDetectorArray(
-  ctx: CanvasRenderingContext2D,
-  plane: Plane,
-  confidence: number[],
+function drawLensTexture(
+  canvas: HTMLCanvasElement,
+  source: HTMLCanvasElement,
+  layer: number,
   hasInk: boolean,
 ) {
-  drawGlassBody(ctx, plane, 5);
-
-  const rows = 10;
-  const x = plane.x + plane.w * 0.5;
-  const y0 = plane.y + 23;
-  const gap = (plane.h - 46) / (rows - 1);
-
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const size = canvas.width;
+  ctx.clearRect(0, 0, size, size);
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (let digit = 0; digit < rows; digit += 1) {
-    const strength = hasInk ? confidence[digit] : 0.045;
-    const y = y0 + gap * digit;
-    const radius = 4 + strength * 18;
-    const glow = ctx.createRadialGradient(x, y, 1, x, y, radius * 2.9);
-    glow.addColorStop(0, `rgba(255, 255, 255, ${0.2 + strength * 0.72})`);
-    glow.addColorStop(0.24, `rgba(169, 247, 255, ${0.18 + strength * 0.55})`);
-    glow.addColorStop(0.7, `rgba(92, 192, 255, ${strength * 0.18})`);
-    glow.addColorStop(1, "rgba(92, 192, 255, 0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(x, y, radius * 2.9, 0, Math.PI * 2);
-    ctx.fill();
+  circleMask(ctx, size);
 
-    ctx.fillStyle = `rgba(233, 255, 255, ${0.16 + strength * 0.72})`;
-    ctx.beginPath();
-    ctx.arc(x, y, 3 + strength * 6, 0, Math.PI * 2);
-    ctx.fill();
+  const base = ctx.createRadialGradient(size * 0.42, size * 0.36, 10, size / 2, size / 2, size * 0.52);
+  base.addColorStop(0, "rgba(255, 255, 255, 0.32)");
+  base.addColorStop(0.55, "rgba(185, 232, 238, 0.12)");
+  base.addColorStop(1, "rgba(118, 176, 188, 0.04)");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, size, size);
 
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = `rgba(210, 238, 240, ${0.36 + strength * 0.5})`;
-    ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(digit), x - 24, y + 0.5);
-    ctx.globalCompositeOperation = "lighter";
+  ctx.globalCompositeOperation = "source-over";
+  ctx.lineWidth = 1.15;
+  for (let i = 0; i < 36; i += 1) {
+    const radius = size * (0.08 + i * 0.0115);
+    const phase = layer * 0.8 + i * 0.34;
+    ctx.beginPath();
+    for (let t = 0; t <= Math.PI * 2 + 0.02; t += 0.035) {
+      const wobble =
+        Math.sin(t * (2 + layer) + phase) * size * 0.0055 +
+        Math.sin(t * 7 - phase * 1.7) * size * 0.0022;
+      const r = radius + wobble;
+      const x = size / 2 + Math.cos(t) * r;
+      const y = size / 2 + Math.sin(t) * r;
+      if (t === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    const alpha = 0.08 + (i % 3) * 0.028;
+    ctx.strokeStyle = `rgba(55, 122, 138, ${alpha})`;
+    ctx.stroke();
   }
+
+  if (hasInk) {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.filter = `blur(${10 + layer * 4}px)`;
+    const dx = Math.sin(layer * 1.3) * 24;
+    const dy = Math.cos(layer * 1.1) * 18;
+    ctx.globalAlpha = 0.35 + layer * 0.08;
+    ctx.drawImage(source, dx, dy, size, size);
+    ctx.filter = "none";
+    ctx.globalAlpha = 0.18;
+    ctx.drawImage(source, -dx * 0.45, -dy * 0.45, size, size);
+    ctx.restore();
+  } else {
+    const idle = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size * 0.42);
+    idle.addColorStop(0, "rgba(150, 214, 225, 0.08)");
+    idle.addColorStop(1, "rgba(150, 214, 225, 0)");
+    ctx.fillStyle = idle;
+    ctx.fillRect(0, 0, size, size);
+  }
+
   ctx.restore();
 }
 
-function renderScene(
-  ctx: CanvasRenderingContext2D,
-  drawCanvas: HTMLCanvasElement,
-  patternCanvases: HTMLCanvasElement[],
-  state: DrawState,
-  dt: number,
-) {
-  drawBackground(ctx);
+function drawOutputTexture(canvas: HTMLCanvasElement, confidence: number[], hasInk: boolean) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const size = canvas.width;
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = "#f7fbfc";
+  ctx.fillRect(0, 0, size, size);
 
-  const target = state.hasInk ? estimateConfidence(drawCanvas) : Array.from({ length: 10 }, () => 0.04);
-  state.targetConfidence = target;
-  const smoothing = Math.min(1, dt / 340);
-  state.smoothConfidence = state.smoothConfidence.map(
-    (value, index) => value + (state.targetConfidence[index] - value) * smoothing,
-  );
+  ctx.save();
+  circleMask(ctx, size);
+  const paper = ctx.createRadialGradient(size * 0.45, size * 0.35, 20, size / 2, size / 2, size * 0.55);
+  paper.addColorStop(0, "#ffffff");
+  paper.addColorStop(0.72, "#eef4f5");
+  paper.addColorStop(1, "#dfe8ea");
+  ctx.fillStyle = paper;
+  ctx.fillRect(0, 0, size, size);
 
-  for (let i = 0; i < patternCanvases.length; i += 1) {
-    renderPattern(patternCanvases[i], drawCanvas, i + 1, state.hasInk);
+  for (let digit = 0; digit < DIGITS; digit += 1) {
+    const anchor = digitAnchors[digit];
+    const x = anchor.x * size;
+    const y = anchor.y * size;
+    const strength = hasInk ? confidence[digit] : 0.012;
+    const glow = ctx.createRadialGradient(x, y, 4, x, y, size * (0.08 + strength * 0.24));
+    glow.addColorStop(0, `rgba(56, 184, 220, ${0.36 + strength * 2.4})`);
+    glow.addColorStop(0.35, `rgba(154, 224, 235, ${0.14 + strength * 0.95})`);
+    glow.addColorStop(1, "rgba(154, 224, 235, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, size, size);
   }
 
-  const power = state.hasInk ? 1 : 0.2;
-  for (let i = 0; i < planes.length - 1; i += 1) {
-    drawGuidingBeam(ctx, planes[i], planes[i + 1], power);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "600 42px Inter, ui-sans-serif, system-ui";
+  for (let digit = 0; digit < DIGITS; digit += 1) {
+    const anchor = digitAnchors[digit];
+    const x = anchor.x * size;
+    const y = anchor.y * size;
+    ctx.fillStyle = "rgba(42, 58, 62, 0.76)";
+    ctx.fillText(String(digit), x, y);
   }
 
-  drawGlassBody(ctx, planes[0], 0);
-  drawInputOnPlane(ctx, planes[0], drawCanvas, state.hasInk);
-
-  for (let i = 1; i <= 4; i += 1) {
-    drawGlassBody(ctx, planes[i], i);
-    drawPatternOnPlane(ctx, planes[i], patternCanvases[i - 1], i);
-  }
-
-  drawDetectorArray(ctx, planes[5], state.smoothConfidence, state.hasInk);
+  ctx.strokeStyle = "rgba(88, 120, 128, 0.12)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size * 0.45, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
-function eventToViewPoint(canvas: HTMLCanvasElement, event: PointerEvent): Point {
-  const rect = canvas.getBoundingClientRect();
+function makeGlassMaterial(texture: THREE.Texture, opacity: number) {
+  return new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color("#f9feff"),
+    map: texture,
+    transparent: true,
+    opacity,
+    roughness: 0.18,
+    metalness: 0,
+    transmission: 0.4,
+    thickness: 0.08,
+    clearcoat: 1,
+    clearcoatRoughness: 0.08,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+}
+
+function createScene(container: HTMLDivElement, onInkChange: (hasInk: boolean) => void): SceneState {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.setClearColor("#f4f7f8");
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#f4f7f8");
+
+  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+  camera.position.set(-0.18, 1.36, 9.05);
+  camera.lookAt(0.02, -0.02, 0);
+
+  const ambient = new THREE.HemisphereLight("#ffffff", "#d8e4e7", 2.6);
+  scene.add(ambient);
+
+  const key = new THREE.DirectionalLight("#ffffff", 3.8);
+  key.position.set(-2.7, 4.1, 3.8);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  scene.add(key);
+
+  const fill = new THREE.PointLight("#d9fbff", 12, 7);
+  fill.position.set(2.9, 1.8, 2.4);
+  scene.add(fill);
+
+  const wallMaterial = new THREE.MeshStandardMaterial({
+    color: "#f2f5f6",
+    roughness: 0.82,
+  });
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(9.5, 5.3), wallMaterial);
+  wall.position.set(0.3, 0, -1.18);
+  wall.receiveShadow = true;
+  scene.add(wall);
+
+  const shelf = new THREE.Mesh(
+    new THREE.PlaneGeometry(9.5, 3.1),
+    new THREE.MeshStandardMaterial({ color: "#e8eef0", roughness: 0.78 }),
+  );
+  shelf.rotation.x = -Math.PI / 2;
+  shelf.position.set(0.3, -1.55, 0.35);
+  shelf.receiveShadow = true;
+  scene.add(shelf);
+
+  const inputCanvas = createCanvas(INPUT_SIZE);
+  const inputTexture = new THREE.CanvasTexture(inputCanvas);
+  inputTexture.colorSpace = THREE.SRGBColorSpace;
+  const inputMaterial = makeGlassMaterial(inputTexture, 0.82);
+  const circleGeometry = new THREE.CircleGeometry(0.52, 128);
+  const inputMesh = new THREE.Mesh(circleGeometry, inputMaterial);
+  inputMesh.position.set(-3.22, 0, 0);
+  inputMesh.rotation.y = -0.28;
+  inputMesh.castShadow = true;
+  inputMesh.receiveShadow = true;
+  scene.add(inputMesh);
+
+  const inputRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.525, 0.009, 12, 160),
+    new THREE.MeshBasicMaterial({
+      color: "#b7dce4",
+      transparent: true,
+      opacity: 0.74,
+    }),
+  );
+  inputRim.position.copy(inputMesh.position);
+  inputRim.rotation.copy(inputMesh.rotation);
+  scene.add(inputRim);
+
+  const lensCanvases = lensX.map(() => createCanvas());
+  const lensTextures = lensCanvases.map((canvas) => {
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  });
+
+  lensTextures.forEach((texture, index) => {
+    drawLensTexture(lensCanvases[index], inputCanvas, index + 1, false);
+    texture.needsUpdate = true;
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.52, 160), makeGlassMaterial(texture, 0.54));
+    lens.position.set(lensX[index], Math.sin(index * 0.6) * 0.04, 0);
+    lens.rotation.y = -0.18 + index * 0.055;
+    lens.castShadow = true;
+    lens.receiveShadow = true;
+    scene.add(lens);
+
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.525, 0.009, 12, 160),
+      new THREE.MeshBasicMaterial({
+        color: "#c7e0e5",
+        transparent: true,
+        opacity: 0.78,
+      }),
+    );
+    rim.position.copy(lens.position);
+    rim.rotation.copy(lens.rotation);
+    rim.castShadow = true;
+    scene.add(rim);
+  });
+
+  const outputCanvas = createCanvas();
+  const outputTexture = new THREE.CanvasTexture(outputCanvas);
+  outputTexture.colorSpace = THREE.SRGBColorSpace;
+  drawOutputTexture(outputCanvas, Array(DIGITS).fill(0), false);
+  outputTexture.needsUpdate = true;
+
+  const output = new THREE.Mesh(
+    new THREE.CircleGeometry(0.64, 160),
+    new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      map: outputTexture,
+      side: THREE.FrontSide,
+    }),
+  );
+  output.position.set(2.85, 0, 0);
+  output.rotation.y = 0.23;
+  output.castShadow = true;
+  output.receiveShadow = true;
+  scene.add(output);
+
+  const outputRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.645, 0.01, 12, 160),
+    new THREE.MeshBasicMaterial({
+      color: "#cfdcdf",
+      transparent: true,
+      opacity: 0.74,
+    }),
+  );
+  outputRim.position.copy(output.position);
+  outputRim.rotation.copy(output.rotation);
+  outputRim.castShadow = true;
+  scene.add(outputRim);
+
   return {
-    x: ((event.clientX - rect.left) / rect.width) * VIEW_W,
-    y: ((event.clientY - rect.top) / rect.height) * VIEW_H,
+    renderer,
+    scene,
+    camera,
+    raycaster: new THREE.Raycaster(),
+    pointer: new THREE.Vector2(),
+    inputMesh,
+    inputCanvas,
+    inputTexture,
+    lensCanvases,
+    lensTextures,
+    outputCanvas,
+    outputTexture,
+    confidence: Array(DIGITS).fill(0),
+    targetConfidence: Array(DIGITS).fill(0),
+    hasInk: false,
+    activePointerId: null,
+    lastInkPoint: null,
+    animationFrame: 0,
+    onInkChange,
   };
+}
+
+function updateTextures(state: SceneState) {
+  state.lensCanvases.forEach((canvas, index) => {
+    drawLensTexture(canvas, state.inputCanvas, index + 1, state.hasInk);
+    state.lensTextures[index].needsUpdate = true;
+  });
+  drawOutputTexture(state.outputCanvas, state.confidence, state.hasInk);
+  state.outputTexture.needsUpdate = true;
+}
+
+function resize(container: HTMLDivElement, state: SceneState) {
+  const width = Math.max(1, container.clientWidth);
+  const height = Math.max(1, container.clientHeight);
+  state.renderer.setSize(width, height, false);
+  state.camera.aspect = width / height;
+  state.camera.updateProjectionMatrix();
+}
+
+function pointOnInput(event: PointerEvent, container: HTMLDivElement, state: SceneState) {
+  const rect = container.getBoundingClientRect();
+  state.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  state.pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+  state.raycaster.setFromCamera(state.pointer, state.camera);
+  const [hit] = state.raycaster.intersectObject(state.inputMesh);
+  if (!hit?.uv) return null;
+
+  const x = hit.uv.x * INPUT_SIZE;
+  const y = (1 - hit.uv.y) * INPUT_SIZE;
+  const dx = x - INPUT_SIZE / 2;
+  const dy = y - INPUT_SIZE / 2;
+  if (Math.sqrt(dx * dx + dy * dy) > INPUT_SIZE * 0.48) return null;
+  return { x, y };
+}
+
+function animate(state: SceneState) {
+  for (let i = 0; i < DIGITS; i += 1) {
+    state.confidence[i] += (state.targetConfidence[i] - state.confidence[i]) * 0.08;
+  }
+  updateTextures(state);
+  state.renderer.render(state.scene, state.camera);
+  state.animationFrame = window.requestAnimationFrame(() => animate(state));
 }
 
 export const OpticalBenchCanvas = forwardRef<
   OpticalBenchHandle,
   { onInkChange: (hasInk: boolean) => void }
 >(function OpticalBenchCanvas({ onInkChange }, ref) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const drawCanvas = useMemo(() => makeCanvas(INPUT_W, INPUT_H), []);
-  const patternCanvases = useMemo(
-    () => Array.from({ length: 4 }, () => makeCanvas(PATTERN_SIZE, PATTERN_SIZE)),
-    [],
-  );
-  const stateRef = useRef<DrawState>({
-    activePointerId: null,
-    lastPoint: null,
-    hasInk: false,
-    targetConfidence: Array.from({ length: 10 }, () => 0.04),
-    smoothConfidence: Array.from({ length: 10 }, () => 0.04),
-  });
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const stateRef = useRef<SceneState | null>(null);
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      clear: () => {
-        clearDrawing(drawCanvas);
-        stateRef.current.hasInk = false;
-        stateRef.current.lastPoint = null;
-        stateRef.current.targetConfidence = Array.from({ length: 10 }, () => 0.04);
-        onInkChange(false);
-      },
-    }),
-    [drawCanvas, onInkChange],
-  );
+  useImperativeHandle(ref, () => ({
+    clear: () => {
+      const state = stateRef.current;
+      if (!state) return;
+      resetInputCanvas(state.inputCanvas);
+      state.inputTexture.needsUpdate = true;
+      state.hasInk = false;
+      state.targetConfidence = Array(DIGITS).fill(0);
+      state.lastInkPoint = null;
+      state.onInkChange(false);
+    },
+  }));
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const state = createScene(container, onInkChange);
+    stateRef.current = state;
+    resize(container, state);
+    animate(state);
 
-    let animationFrame = 0;
-    let lastTime = performance.now();
-
-    const render = (time: number) => {
-      const { ctx, width, height } = setupCanvasSize(canvas);
-      const scale = Math.min(width / VIEW_W, height / VIEW_H);
-      const x = (width - VIEW_W * scale) / 2;
-      const y = (height - VIEW_H * scale) / 2;
-
-      ctx.clearRect(0, 0, width, height);
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(scale, scale);
-      renderScene(ctx, drawCanvas, patternCanvases, stateRef.current, time - lastTime);
-      ctx.restore();
-
-      lastTime = time;
-      animationFrame = requestAnimationFrame(render);
-    };
-
-    animationFrame = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [drawCanvas, patternCanvases]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const toLocalInput = (event: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const scale = Math.min(rect.width / VIEW_W, rect.height / VIEW_H);
-      const offsetX = (rect.width - VIEW_W * scale) / 2;
-      const offsetY = (rect.height - VIEW_H * scale) / 2;
-      const viewPoint = eventToViewPoint(canvas, event);
-      const corrected = {
-        x: (event.clientX - rect.left - offsetX) / scale,
-        y: (event.clientY - rect.top - offsetY) / scale,
-      };
-      return mapToPlane(Number.isFinite(corrected.x) ? corrected : viewPoint, planes[0]);
-    };
-
+    const handleResize = () => resize(container, state);
     const handlePointerDown = (event: PointerEvent) => {
-      const point = toLocalInput(event);
+      const point = pointOnInput(event, container, state);
       if (!point) return;
       event.preventDefault();
-      canvas.setPointerCapture(event.pointerId);
-      stateRef.current.activePointerId = event.pointerId;
-      stateRef.current.lastPoint = point;
-      drawInkStroke(drawCanvas, null, point);
-      stateRef.current.hasInk = true;
-      onInkChange(true);
+      state.activePointerId = event.pointerId;
+      state.lastInkPoint = point;
+      drawInputStroke(state.inputCanvas, null, point);
+      state.inputTexture.needsUpdate = true;
+      state.hasInk = true;
+      state.targetConfidence = estimateConfidence(state.inputCanvas);
+      state.onInkChange(true);
+      state.renderer.domElement.setPointerCapture(event.pointerId);
     };
-
     const handlePointerMove = (event: PointerEvent) => {
-      if (stateRef.current.activePointerId !== event.pointerId) return;
-      const point = toLocalInput(event);
+      if (state.activePointerId !== event.pointerId) return;
+      const point = pointOnInput(event, container, state);
       if (!point) return;
       event.preventDefault();
-      drawInkStroke(drawCanvas, stateRef.current.lastPoint, point);
-      stateRef.current.lastPoint = point;
-      stateRef.current.hasInk = true;
-      onInkChange(true);
+      drawInputStroke(state.inputCanvas, state.lastInkPoint, point);
+      state.lastInkPoint = point;
+      state.inputTexture.needsUpdate = true;
+      state.hasInk = true;
+      state.targetConfidence = estimateConfidence(state.inputCanvas);
+    };
+    const handlePointerUp = (event: PointerEvent) => {
+      if (state.activePointerId !== event.pointerId) return;
+      state.activePointerId = null;
+      state.lastInkPoint = null;
+      state.renderer.domElement.releasePointerCapture(event.pointerId);
     };
 
-    const endPointer = (event: PointerEvent) => {
-      if (stateRef.current.activePointerId !== event.pointerId) return;
-      stateRef.current.activePointerId = null;
-      stateRef.current.lastPoint = null;
-    };
+    window.addEventListener("resize", handleResize);
+    state.renderer.domElement.addEventListener("pointerdown", handlePointerDown);
+    state.renderer.domElement.addEventListener("pointermove", handlePointerMove);
+    state.renderer.domElement.addEventListener("pointerup", handlePointerUp);
+    state.renderer.domElement.addEventListener("pointercancel", handlePointerUp);
 
-    canvas.addEventListener("pointerdown", handlePointerDown);
-    canvas.addEventListener("pointermove", handlePointerMove);
-    canvas.addEventListener("pointerup", endPointer);
-    canvas.addEventListener("pointercancel", endPointer);
     return () => {
-      canvas.removeEventListener("pointerdown", handlePointerDown);
-      canvas.removeEventListener("pointermove", handlePointerMove);
-      canvas.removeEventListener("pointerup", endPointer);
-      canvas.removeEventListener("pointercancel", endPointer);
+      window.cancelAnimationFrame(state.animationFrame);
+      window.removeEventListener("resize", handleResize);
+      state.renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
+      state.renderer.domElement.removeEventListener("pointermove", handlePointerMove);
+      state.renderer.domElement.removeEventListener("pointerup", handlePointerUp);
+      state.renderer.domElement.removeEventListener("pointercancel", handlePointerUp);
+      state.renderer.dispose();
+      state.renderer.domElement.remove();
+      stateRef.current = null;
     };
-  }, [drawCanvas, onInkChange]);
+  }, [onInkChange]);
 
-  return <canvas ref={canvasRef} className="bench-canvas" aria-label="Optical bench drawing surface" />;
+  return <div ref={containerRef} className="bench-canvas" aria-label="Optical bench drawing surface" />;
 });

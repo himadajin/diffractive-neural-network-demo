@@ -13,7 +13,7 @@ A lightweight simulation used to make the artwork's light behavior look coherent
 _Avoid_: Accurate diffraction solver, scientific simulation
 
 **Handwritten Input**:
-The viewer-facing input to the Artwork: a digit drawn directly by the viewer onto the first optical surface of the Optical Bench. Development presets may exist, but they are not part of the viewer-facing Artwork.
+The viewer-facing input to the Artwork: a digit drawn directly by the viewer onto the circular first optical surface of the Optical Bench. Development presets may exist, but they are not part of the viewer-facing Artwork.
 _Avoid_: Preset selector, auto-play source
 
 **Exhibition UI**:
@@ -33,35 +33,39 @@ The first target presentation format for the Artwork: a desktop or exhibition-st
 _Avoid_: Mobile-first layout
 
 **Optical Bench**:
-The viewer-facing spatial arrangement of the Artwork, shown as a pseudo-3D sequence of input plane, four relief glass layers, and output screen. The viewer does not navigate a free 3D scene.
+The viewer-facing spatial arrangement of the Artwork, shown as a fixed-camera three-dimensional sequence of input surface, four optical layers, and output detector. The viewer does not navigate a free 3D scene.
 _Avoid_: Flat diagram, free camera 3D scene
 
-**Relief Glass Layer**:
-One of four fixed glass plates with moderately visible surface relief, like a learned optical element in a telescope-like or microscope-like light circuit. The layer itself does not change when the Handwritten Input changes, and its relief should support rather than overpower the light.
-_Avoid_: Animated layer, changing lens, abstract neural-network layer
+**Relief Lens Layer**:
+One of four fixed circular optical elements with visible surface relief, like a learned lens in a telescope-like or microscope-like light circuit. Each layer changes the meaning and distribution of light passing through it, while the layer itself does not change when the Handwritten Input changes. Its relief should primarily read as continuous optical structure, with only subtle learned irregularity.
+_Avoid_: Animated layer, changing lens, abstract neural-network layer, flat glass plate
 
 **Diffraction Pattern**:
 The luminous field shown on each optical surface as the primary visual expression of light changing through the Artwork.
 _Avoid_: Laser ray
 
 **Guiding Beam**:
-A subtle directional light cue between optical surfaces. It supports the sense of propagation but is not the main visual expression.
-_Avoid_: Primary light visualization
+A development-only or highly restrained directional cue between optical surfaces. The Artwork should express propagation primarily through light landing on lens surfaces, projected shadows, and changing diffraction patterns rather than visible connecting lines.
+_Avoid_: Viewer-facing light rays, primary light visualization
 
 **Light Palette**:
-The Artwork's restrained light color language: cool white to cyan as the main light, with subtle spectral color only at glass edges, interference details, and strong receptor highlights.
-_Avoid_: Full rainbow palette, AI neon palette
+The Artwork's restrained light color language: a quiet white-based environment with cool white light, pale cyan highlights, and subtle spectral color only at lens edges, interference details, and strong output highlights. The environment should not visually compete with the glass relief or projected shadows.
+_Avoid_: Dark background, warm exhibition lighting, full rainbow palette, AI neon palette
+
+**Quiet White Environment**:
+The understated white to light-gray spatial setting behind the Optical Bench. It exists to catch shadows, reflections, and projected light without becoming a visual subject of the Artwork.
+_Avoid_: Decorative background, warm booth lighting, information panel
 
 **Idle Glow**:
 The faint resting illumination of the Optical Bench before the viewer draws: subtle glass edges, input-surface reflections, and weak receptor light without showing a preset digit.
 _Avoid_: Blank screen, sample input
 
-**Detector Array**:
-The output surface containing ten subtly labelled light receptors for digits 0 through 9.
-_Avoid_: Abstract unlabeled output, dashboard
+**Output Screen**:
+The final passive, opaque projection surface of the Artwork, marked with upright printed digits 0 through 9 arranged around a circle. The screen does not perform classification; the Relief Lens Layers determine where light lands.
+_Avoid_: Active receptor array, transparent screen, dashboard, classifier display
 
 **Confidence Glow**:
-The brightness of each receptor in the Detector Array, corresponding to how strongly the Artwork treats that digit as a candidate result.
+The brightness landing on each printed digit mark of the Output Screen, corresponding to how strongly the Artwork treats that digit as a candidate result.
 _Avoid_: Winner-only output
 
 **Response Timing**:
@@ -105,7 +109,7 @@ Dev: "What should the viewer see before drawing?"
 Domain expert: "The Optical Bench should show Idle Glow, not a blank screen or a preset digit."
 
 Dev: "Should only the predicted digit light up?"
-Domain expert: "No. The Detector Array should show Confidence Glow for all ten digits, so ambiguous Handwritten Input can produce multiple visible candidates."
+Domain expert: "No. The Output Screen should show Confidence Glow for all ten digits, so ambiguous Handwritten Input can produce multiple visible candidates."
 
 Dev: "Should the result update only after drawing finishes?"
 Domain expert: "No. Response Timing should feel live, with only the Confidence Glow smoothed to avoid flicker."
