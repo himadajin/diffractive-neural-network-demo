@@ -33,8 +33,10 @@ export type SceneState = {
   pointer: THREE.Vector2;
   inputMesh: THREE.Mesh;
   inputCanvas: HTMLCanvasElement;
+  inputSurfaceCanvas: HTMLCanvasElement;
   inputTexture: THREE.CanvasTexture;
   inputLightSamples: InputLightSample[];
+  normalizedInput: Float32Array | null;
   textureDirty: boolean;
   lensBaseCanvases: HTMLCanvasElement[];
   lensCanvases: HTMLCanvasElement[];

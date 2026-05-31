@@ -90,7 +90,15 @@ _Avoid_: Pixelated lens, raw pasted input, texture resolution, UI preview
 
 **Luminous Cell Field**:
 A Projected Light Field whose visible information is carried by an array of glowing cells rather than by a pasted bitmap. On the Input Surface it can represent the same normalized input seen by the Classifier while still reading as light caught in glass; visible grid lines should not compete with the optical surface.
-_Avoid_: Pixel art sticker, sharp nearest-neighbor image, flat preview, drawn grid
+_Avoid_: Pixel art sticker, sharp nearest-neighbor image, flat preview, drawn grid, deliberate cell spacing
+
+**Input Mask**:
+The dark, light-blocking appearance of the Handwritten Input as it enters the optical path. It should preserve the Drawing Panel's stable input position while reading as optical masking on glass, not as blue ink or a glowing digit.
+_Avoid_: Glowing handwriting, colored marker, UI ink, recentered display mask
+
+**Monochrome Light Field**:
+A Projected Light Field whose primary contrast is blocked darkness against transmitted white light. It may use subtle cool glass tints, but the optical information should read mainly through black, white, and gray values.
+_Avoid_: Blue-only propagation, colored feature map, neon light path
 
 **Relief-Revealed Cell Field**:
 A Luminous Cell Field whose cells appear to emerge from light interacting with glass relief, reflection, and subtle interference on the optical surface. The cells should not read as directly drawn squares with graphic edge treatment.
