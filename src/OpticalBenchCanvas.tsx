@@ -265,8 +265,7 @@ export function OpticalBenchCanvas() {
 
   useEffect(() => {
     syncDrawingPanelCanvas(drawingCanvasRef.current, stateRef.current);
-    resizeBench();
-  }, [panelOpen, resizeBench]);
+  }, [panelOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -282,7 +281,7 @@ export function OpticalBenchCanvas() {
     <>
       <div
         ref={containerRef}
-        className={`bench-canvas${panelOpen ? " bench-canvas--with-panel" : ""}`}
+        className="bench-canvas"
         aria-label="Depth-aligned optical bench"
       />
       <section

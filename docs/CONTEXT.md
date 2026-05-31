@@ -40,8 +40,12 @@ _Avoid_: Viewer-facing controls
 A minimal Development Controls surface for adjusting and reading the Optical Bench camera position, target, and field of view with numeric inputs. It exists so visual composition can be discussed with exact numeric parameters without adding exhibition-facing controls.
 _Avoid_: Exhibition camera navigation, viewer-facing orbit controls
 
+**Fixed Bench View Angle**:
+The stable viewing relationship between the Exhibition camera and the Depth-Aligned Optical Bench: the optical axis keeps the same apparent angle across presentation sizes and Drawing Panel states. Readability may be preserved through framing scale, spacing, transparency, and size choices, but not by switching the camera's viewing angle.
+_Avoid_: Breakpoint camera angle, panel-driven camera angle, layout-dependent view direction
+
 **Responsive Fixed Camera**:
-The Artwork's non-interactive camera framing, chosen by presentation size so the Depth-Aligned Optical Bench remains readable without exposing viewer-facing camera controls.
+The Artwork's non-interactive camera framing, chosen by presentation size so the Depth-Aligned Optical Bench remains readable without exposing viewer-facing camera controls. It preserves the Fixed Bench View Angle; responsive adaptation may change framing scale or screen placement, but not the camera's viewing direction relative to the optical axis.
 _Avoid_: Orbit controls, free camera, viewer-adjustable camera
 
 **Prototype Rendering**:
@@ -175,7 +179,10 @@ Dev: "Should viewers be able to move the camera?"
 Domain expert: "No. Camera Debug Controls may exist behind a debug flag, but the Artwork itself has a fixed camera."
 
 Dev: "Can the fixed camera change for different screen sizes?"
-Domain expert: "Yes. A Responsive Fixed Camera may choose different non-interactive framing for different presentation sizes, as long as viewers are not given camera navigation."
+Domain expert: "Yes, but only as framing. A Responsive Fixed Camera should preserve the Fixed Bench View Angle so the optical axis does not feel like it rotates between screen sizes."
+
+Dev: "Can opening the Drawing Panel change the camera angle to make more room?"
+Domain expert: "No. The Drawing Panel belongs to the Exhibition UI; it may overlay the Artwork, but it should not drive a new view angle for the Optical Bench."
 
 Dev: "Can mobile show only the drawing surface while the viewer draws?"
 Domain expert: "No. Whole Path Readability matters across supported screen sizes: the input, intermediate lenses, and output should remain visible together."

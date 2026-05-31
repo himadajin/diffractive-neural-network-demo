@@ -6,32 +6,67 @@ export const TEXTURE_SIZE = 512;
 export const DIGITS = 10;
 export const INPUT_SURFACE_RADIUS = 0.52;
 
-export const DEFAULT_CAMERA: CameraConfig = {
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
+const BASE_CAMERA: CameraConfig = {
   position: { x: 2.55, y: 2.05, z: 7.1 },
   target: { x: 0, y: -0.04, z: -0.16 },
   fov: 43,
 };
 
-export const PORTRAIT_CAMERA: CameraConfig = {
-  position: { x: 1.35, y: 2.95, z: 7.8 },
-  target: { x: 0, y: -0.08, z: -0.12 },
-  fov: 50,
-};
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
 
-export const COMPACT_LANDSCAPE_CAMERA: CameraConfig = {
-  position: { x: 2.8, y: 1.35, z: 7.35 },
-  target: { x: 0, y: -0.12, z: -0.18 },
-  fov: 49,
-};
+function toVector(point: CameraConfig["position"]) {
+  return new THREE.Vector3(point.x, point.y, point.z);
+}
+
+function toPoint(vector: THREE.Vector3) {
+  return {
+    x: Number(vector.x.toFixed(3)),
+    y: Number(vector.y.toFixed(3)),
+    z: Number(vector.z.toFixed(3)),
+  };
+}
+
+function panCamera(config: CameraConfig, rightPan: number, upPan: number) {
+  const basePosition = toVector(config.position);
+  const baseTarget = toVector(config.target);
+  const viewDirection = baseTarget.clone().sub(basePosition).normalize();
+  const cameraRight = viewDirection.clone().cross(WORLD_UP).normalize();
+  const cameraUp = cameraRight.clone().cross(viewDirection).normalize();
+  const framingPan = cameraRight
+    .multiplyScalar(rightPan)
+    .add(cameraUp.multiplyScalar(upPan));
+
+  return {
+    position: toPoint(basePosition.add(framingPan)),
+    target: toPoint(baseTarget.add(framingPan)),
+    fov: config.fov,
+  };
+}
+
+export const DEFAULT_CAMERA: CameraConfig = panCamera(BASE_CAMERA, 0, -0.52);
 
 export function getResponsiveCamera(width: number, height: number) {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
   const aspect = safeWidth / safeHeight;
+  const narrowness = clamp((0.96 - aspect) / 0.54, 0, 1);
+  const shortness = clamp((620 - safeHeight) / 300, 0, 1);
+  const fov = DEFAULT_CAMERA.fov + narrowness * 8 + shortness * 4;
+  const camera = panCamera(
+    DEFAULT_CAMERA,
+    -0.54 * narrowness,
+    -0.16 * shortness,
+  );
 
-  if (aspect < 0.82) return PORTRAIT_CAMERA;
-  if (safeHeight < 560) return COMPACT_LANDSCAPE_CAMERA;
-  return DEFAULT_CAMERA;
+  return {
+    position: camera.position,
+    target: camera.target,
+    fov: Number(fov.toFixed(2)),
+  };
 }
 
 export const OPTICAL_AXIS = new THREE.Vector3(0, 0, -1).normalize();
