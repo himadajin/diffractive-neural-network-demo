@@ -57,6 +57,14 @@ button {
   height: 100%;
 }
 
+.bench-canvas--debug canvas {
+  cursor: grab;
+}
+
+.bench-canvas--debug canvas:active {
+  cursor: grabbing;
+}
+
 .drawing-panel {
   position: absolute;
   z-index: 4;
@@ -179,7 +187,7 @@ button {
 .camera-debug {
   position: absolute;
   top: 24px;
-  left: 24px;
+  right: 24px;
   width: 224px;
   padding: 12px;
   border: 1px solid rgba(85, 116, 124, 0.18);
@@ -255,7 +263,7 @@ button {
 @media (max-width: 520px) {
   .camera-debug {
     top: 12px;
-    left: 12px;
+    right: 12px;
     width: min(224px, calc(100vw - 24px));
   }
 }
