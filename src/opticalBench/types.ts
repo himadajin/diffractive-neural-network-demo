@@ -36,8 +36,6 @@ export type SceneState = {
   classificationInFlight: boolean;
   classificationQueued: boolean;
   hasInk: boolean;
-  activePointerId: number | null;
-  lastInkPoint: Point | null;
   animationFrame: number;
   onInkChange: (hasInk: boolean) => void;
 };
