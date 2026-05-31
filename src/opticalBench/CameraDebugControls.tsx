@@ -1,10 +1,11 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import { DEFAULT_CAMERA } from "./constants";
 import type { CameraConfig, Point3 } from "./types";
 
 type CameraDebugControlsProps = {
   cameraConfig: CameraConfig;
   setCameraConfig: Dispatch<SetStateAction<CameraConfig>>;
+  onOpenDrawingPanel: () => void;
+  onResetCamera: () => void;
 };
 
 function readNumber(value: string, fallback: number) {
@@ -15,6 +16,8 @@ function readNumber(value: string, fallback: number) {
 export function CameraDebugControls({
   cameraConfig,
   setCameraConfig,
+  onOpenDrawingPanel,
+  onResetCamera,
 }: CameraDebugControlsProps) {
   const updateCameraValue = useCallback(
     (section: "position" | "target", axis: keyof Point3, value: string) => {
@@ -29,10 +32,6 @@ export function CameraDebugControls({
     [setCameraConfig],
   );
 
-  const resetCamera = useCallback(() => {
-    setCameraConfig(DEFAULT_CAMERA);
-  }, [setCameraConfig]);
-
   const copyCamera = useCallback(() => {
     const value = `camera={ position:[${cameraConfig.position.x}, ${cameraConfig.position.y}, ${cameraConfig.position.z}], target:[${cameraConfig.target.x}, ${cameraConfig.target.y}, ${cameraConfig.target.z}], fov:${cameraConfig.fov} }`;
     void navigator.clipboard?.writeText(value);
@@ -46,7 +45,10 @@ export function CameraDebugControls({
         <button type="button" onClick={copyCamera}>
           copy
         </button>
-        <button type="button" onClick={resetCamera}>
+        <button type="button" onClick={onOpenDrawingPanel}>
+          draw
+        </button>
+        <button type="button" onClick={onResetCamera}>
           reset
         </button>
       </div>
