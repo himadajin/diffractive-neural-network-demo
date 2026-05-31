@@ -42,6 +42,21 @@ function strongestDigit(confidence: number[]) {
   return { index, value };
 }
 
+function confidenceDigitFill(strength: number) {
+  const lift = Math.pow(Math.max(0, Math.min(1, strength)), 0.55);
+  const r = Math.round(32 + lift * 214);
+  const g = Math.round(54 + lift * 201);
+  const b = Math.round(60 + lift * 195);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function outputDisplayStrength(confidence: number[], strength: number) {
+  const maxConfidence = Math.max(...confidence);
+  if (maxConfidence <= 0.0005 || strength <= 0.0005) return 0;
+  const contrastStretched = strength / Math.max(maxConfidence, 0.34);
+  return Math.min(1, Math.pow(contrastStretched, 0.72));
+}
+
 export function drawLensTexture(
   canvas: HTMLCanvasElement,
   source: HTMLCanvasElement,
@@ -218,52 +233,47 @@ export function drawOutputTexture(
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, size, size);
 
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "650 50px Inter, ui-sans-serif, system-ui";
+
+  if (hasInk) {
+    for (let digit = 0; digit < DIGITS; digit += 1) {
+      const anchor = DIGIT_ANCHORS[digit];
+      const x = anchor.x * size;
+      const y = anchor.y * size;
+      const displayStrength = outputDisplayStrength(
+        confidence,
+        confidence[digit],
+      );
+      if (displayStrength <= 0.0005) continue;
+      const alpha = 0.14 + displayStrength * 0.86;
+      ctx.fillStyle = `rgba(42, 217, 238, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.048, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(21, 137, 163, ${0.26 + displayStrength * 0.42})`;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+  }
+
   for (let digit = 0; digit < DIGITS; digit += 1) {
     const anchor = DIGIT_ANCHORS[digit];
     const x = anchor.x * size;
     const y = anchor.y * size;
     const strength = hasInk ? confidence[digit] : 0;
-    if (strength <= 0.0005) continue;
-    const glow = ctx.createRadialGradient(
-      x,
-      y,
-      4,
-      x,
-      y,
-      size * (0.08 + strength * 0.48),
-    );
-    glow.addColorStop(
-      0,
-      `rgba(44, 181, 219, ${Math.min(0.95, 0.12 + strength * 3.4)})`,
-    );
-    glow.addColorStop(
-      0.36,
-      `rgba(142, 226, 239, ${Math.min(0.62, strength * 1.7)})`,
-    );
-    glow.addColorStop(1, "rgba(154, 224, 235, 0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, size, size);
-
-    ctx.fillStyle = `rgba(28, 171, 211, ${Math.min(0.5, 0.05 + strength * 1.25)})`;
-    ctx.beginPath();
-    ctx.arc(x, y, size * (0.018 + strength * 0.04), 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = `rgba(52, 184, 220, ${Math.min(0.68, strength * 1.8)})`;
-    ctx.lineWidth = 1.4 + strength * 4;
-    ctx.beginPath();
-    ctx.arc(x, y, size * (0.042 + strength * 0.1), 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "650 50px Inter, ui-sans-serif, system-ui";
-  for (let digit = 0; digit < DIGITS; digit += 1) {
-    const anchor = DIGIT_ANCHORS[digit];
-    const x = anchor.x * size;
-    const y = anchor.y * size;
-    ctx.fillStyle = "rgba(36, 52, 56, 0.9)";
+    const displayStrength = hasInk
+      ? outputDisplayStrength(confidence, strength)
+      : 0;
+    ctx.lineWidth = hasInk ? 3.4 : 1.8;
+    ctx.strokeStyle = hasInk
+      ? `rgba(8, 28, 34, ${0.52 + displayStrength * 0.42})`
+      : "rgba(36, 52, 56, 0.18)";
+    ctx.strokeText(String(digit), x, y);
+    ctx.fillStyle = hasInk
+      ? confidenceDigitFill(displayStrength)
+      : "rgba(36, 52, 56, 0.68)";
     ctx.fillText(String(digit), x, y);
   }
 
