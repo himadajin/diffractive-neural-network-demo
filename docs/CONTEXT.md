@@ -109,8 +109,8 @@ The final passive, opaque projection surface of the Artwork, marked with upright
 _Avoid_: Active receptor array, transparent screen, dashboard, classifier display
 
 **Confidence Glow**:
-The brightness landing on each printed digit mark of the Output Screen, corresponding to how strongly the Artwork treats that digit as a candidate result.
-_Avoid_: Winner-only output
+The brightness landing on each printed digit mark of the Output Screen, corresponding to how strongly the Artwork treats that digit as a candidate result. It should read as brighter or dimmer digits in fixed positions, not as larger color fields around digits.
+_Avoid_: Winner-only output, probability halo, expanding color field
 
 **Response Timing**:
 The Artwork's temporal behavior: Handwritten Input and intermediate light patterns respond immediately, while Confidence Glow follows smoothly with slight inertia.
