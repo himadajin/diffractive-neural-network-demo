@@ -13,8 +13,20 @@ A lightweight simulation used to make the artwork's light behavior look coherent
 _Avoid_: Accurate diffraction solver, scientific simulation
 
 **Handwritten Input**:
-The viewer-facing input to the Artwork: a digit drawn directly by the viewer onto the circular first optical surface of the Optical Bench. Development presets may exist, but they are not part of the viewer-facing Artwork.
-_Avoid_: Preset selector, auto-play source
+The digit data drawn by the viewer through the Drawing Panel and reflected live onto the Input Surface. Development presets may exist, but they are not part of the viewer-facing Artwork.
+_Avoid_: Preset selector, auto-play source, direct 3D surface manipulation
+
+**Canonical Input Orientation**:
+The shared left/right and top/bottom meaning of the Handwritten Input: a digit is upright exactly as the viewer draws it in the Drawing Panel. The Input Surface, Diffraction Pattern, and Classifier all refer to this same handedness, even when camera perspective changes how the optical surface appears.
+_Avoid_: Mirrored input, back-side input, classifier-only orientation, surface-local handedness
+
+**Drawing Panel**:
+The viewer-facing two-dimensional drawing surface used to create the Handwritten Input. It belongs to the Exhibition UI, not the optical instrument, and contains the clearing control; when collapsed, clearing does not need a separate visible control. The panel opens from the Input Surface but remains layout-independent from it, so drawing stays practical without displacing the real-time optical response or the Optical Bench's visual presence.
+_Avoid_: 3D object drawing, optical component, settings panel, preset selector, global clear button, hidden input affordance, close-button chrome, connector line, callout tether
+
+**Input Surface**:
+The first circular optical surface of the Optical Bench, carrying the live visual imprint of the Handwritten Input into the optical path. When the Drawing Panel is collapsed, it acts as the visual affordance for opening the panel, while remaining part of the optical instrument rather than the surface the viewer draws on directly.
+_Avoid_: Drawing panel, control canvas, classifier input widget
 
 **Exhibition UI**:
 The viewer-facing controls of the Artwork, limited to drawing, clearing, and seeing the optical result.
@@ -28,17 +40,41 @@ _Avoid_: Viewer-facing controls
 A minimal Development Controls surface for adjusting and reading the Optical Bench camera position, target, and field of view with numeric inputs. It exists so visual composition can be discussed with exact numeric parameters without adding exhibition-facing controls.
 _Avoid_: Exhibition camera navigation, viewer-facing orbit controls
 
+**Fixed Bench View Angle**:
+The stable viewing relationship between the Exhibition camera and the Depth-Aligned Optical Bench: the optical axis keeps the same apparent angle across presentation sizes and Drawing Panel states. Readability may be preserved through framing scale, spacing, transparency, and size choices, but not by switching the camera's viewing angle.
+_Avoid_: Breakpoint camera angle, panel-driven camera angle, layout-dependent view direction
+
+**Responsive Fixed Camera**:
+The Artwork's non-interactive camera framing, chosen by presentation size so the Depth-Aligned Optical Bench remains readable without exposing viewer-facing camera controls. It preserves the Fixed Bench View Angle; responsive adaptation may change framing scale or screen placement, but not the camera's viewing direction relative to the optical axis.
+_Avoid_: Orbit controls, free camera, viewer-adjustable camera
+
 **Prototype Rendering**:
 The initial rendering approach for the Artwork, using a simplified Canvas-based version to establish visual direction before investing in more detailed glass rendering.
 _Avoid_: Final visual fidelity
 
-**Primary Display**:
-The first target presentation format for the Artwork: a desktop or exhibition-style landscape screen. Mobile support is important later, but should not drive the initial composition.
-_Avoid_: Mobile-first layout
+**Responsive Presentation**:
+The target presentation approach for the Artwork: desktop, exhibition-style landscape screens, tablets, and mobile screens should all preserve the same Optical Bench identity and remain fully usable. No presentation size is a secondary fallback.
+_Avoid_: Desktop-only composition, mobile-later layout, flat mobile diagram
+
+**Whole Path Readability**:
+The presentation requirement that the Handwritten Input, Relief Lens Layers, and Output Screen remain visible together as one continuous optical path across supported screen sizes.
+_Avoid_: Step-by-step view, hidden output, input-only mobile mode
 
 **Optical Bench**:
-The viewer-facing spatial arrangement of the Artwork, shown as a fixed-camera three-dimensional sequence of input surface, four Relief Lens Layers, and one Output Screen. The components sit along a single optical axis and each surface is perpendicular to that axis, while the viewer-facing camera angle preserves readability.
+The viewer-facing spatial arrangement of the Artwork, shown as a fixed-camera three-dimensional sequence of Input Surface, four Relief Lens Layers, and one Output Screen. The components sit along a single optical axis and each surface is perpendicular to that axis; readability must come from presentation choices rather than rotating individual surfaces away from the optical path.
 _Avoid_: Flat diagram, free camera 3D scene
+
+**Optical Instrument Coherence**:
+The physical believability of the Optical Bench as an object that could exist: surfaces remain centered on the same optical axis and are not specially repositioned to face the camera or cheat readability.
+_Avoid_: Camera-facing lens layout, fanned layers, physically broken optical apparatus
+
+**Depth-Aligned Optical Bench**:
+An Optical Bench composition where the optical axis advances from the viewer-facing foreground into scene depth, like a microscope-like light path, while still keeping the Handwritten Input, Relief Lens Layers, and Output Screen readable.
+_Avoid_: Side-on rail diagram, top-to-bottom flat stack
+
+**Propagation Direction**:
+The optical direction of the Artwork: the Handwritten Input enters from the viewer-facing Input Surface and progresses through Relief Lens Layers toward the Output Screen in scene depth. It is independent of screen-space axes and must not be confused with texture or classifier orientation.
+_Avoid_: Left-to-right flow, screen-vertical flow, camera direction, texture orientation
 
 **Relief Lens Layer**:
 One of four fixed circular optical elements with visible surface relief, like a learned lens in a telescope-like or microscope-like light circuit. Each layer changes the meaning and distribution of light passing through it, while the layer itself does not change when the Handwritten Input changes. Its relief should primarily read as continuous optical structure, with only subtle learned irregularity.
@@ -84,6 +120,10 @@ _Avoid_: Delayed batch result, flickering output
 The learned digit recognizer that produces candidate strengths for the Confidence Glow on the Output Screen from the Handwritten Input. It is separate from the Visual Plausibility Simulation.
 _Avoid_: Optical solver
 
+**Classifier Normalization**:
+The preparation of Handwritten Input for the Classifier while preserving Canonical Input Orientation. It may make the digit easier for the learned recognizer to read, but it is not a second source of truth or a place to repair optical-surface orientation.
+_Avoid_: Mirror correction, display correction, classifier-space drawing, hidden input transform
+
 **Local Classifier Runtime**:
 The packaged browser-side runtime and learned digit-recognition model used by the Classifier. It is bundled with the Artwork so recognition does not depend on an external network service during viewing.
 _Avoid_: CDN-dependent model, server-side recognizer, remote API
@@ -97,7 +137,40 @@ Dev: "Does the Visual Plausibility Simulation need to be physically exact?"
 Domain expert: "No. It needs to respond to input in a way that produces beautiful, believable light behavior."
 
 Dev: "Should viewers choose from preset digits?"
-Domain expert: "No. The Artwork should expose only Handwritten Input. Presets are acceptable for development and debugging, but not as exhibition UI."
+Domain expert: "No. The Artwork should expose only Handwritten Input through the Drawing Panel. Presets are acceptable for development and debugging, but not as exhibition UI."
+
+Dev: "Should viewers draw directly on the 3D optical surface?"
+Domain expert: "No. The Drawing Panel is the manipulation surface; the Input Surface carries the live imprint into the Optical Bench."
+
+Dev: "Does touching the Input Surface create ink directly on the 3D surface?"
+Domain expert: "No. Touching the Input Surface opens the Drawing Panel; ink is created through the Drawing Panel and reflected live onto the Input Surface."
+
+Dev: "How does the viewer open the Drawing Panel?"
+Domain expert: "By touching or clicking the Input Surface. The affordance should be visual and restrained, not an extra explanatory button."
+
+Dev: "Can the Drawing Panel collapse?"
+Domain expert: "Yes. It may collapse when presentation space is tight, especially on mobile, as long as the input affordance remains visible and it does not become a settings panel."
+
+Dev: "Should a separate 2D input preview remain visible while the Drawing Panel is collapsed?"
+Domain expert: "No. The collapsed affordance is the Input Surface itself; adding a separate preview would compete with the Optical Bench."
+
+Dev: "How does the Drawing Panel close?"
+Domain expert: "By returning focus to the Optical Bench, such as tapping outside the panel; desktop keyboard escape may also close it."
+
+Dev: "Should Clear be a separate global button?"
+Domain expert: "No. Clear belongs inside the Drawing Panel, and it does not need to remain visible while the panel is collapsed."
+
+Dev: "Does reopening the Drawing Panel start from a blank drawing?"
+Domain expert: "No. Reopening the Drawing Panel should show the current Handwritten Input so the viewer can continue editing it; clearing is explicit."
+
+Dev: "Can the Drawing Panel, Input Surface, and Classifier each keep separate versions of the input?"
+Domain expert: "No. The Handwritten Input should have one source of truth so the Drawing Panel, Input Surface, and optical response all reflect the same drawing."
+
+Dev: "If the Input Surface is seen at an angle, should the Classifier flip the digit because the optical component has a front and back?"
+Domain expert: "No. Canonical Input Orientation stays viewer-upright: a drawn 2 must remain a 2 for the Drawing Panel, Input Surface, Diffraction Pattern, and Classifier."
+
+Dev: "Should the Drawing Panel become large enough to prioritize beautiful handwriting?"
+Domain expert: "No. The Artwork is about real-time optical feedback, so the Drawing Panel should remain practical without sacrificing the visible Optical Bench."
 
 Dev: "Can the screen show model diagnostics?"
 Domain expert: "Only as Development Controls. The Exhibition UI should stay limited to drawing, clearing, and the optical result."
@@ -105,11 +178,29 @@ Domain expert: "Only as Development Controls. The Exhibition UI should stay limi
 Dev: "Should viewers be able to move the camera?"
 Domain expert: "No. Camera Debug Controls may exist behind a debug flag, but the Artwork itself has a fixed camera."
 
+Dev: "Can the fixed camera change for different screen sizes?"
+Domain expert: "Yes, but only as framing. A Responsive Fixed Camera should preserve the Fixed Bench View Angle so the optical axis does not feel like it rotates between screen sizes."
+
+Dev: "Can opening the Drawing Panel change the camera angle to make more room?"
+Domain expert: "No. The Drawing Panel belongs to the Exhibition UI; it may overlay the Artwork, but it should not drive a new view angle for the Optical Bench."
+
+Dev: "Can mobile show only the drawing surface while the viewer draws?"
+Domain expert: "No. Whole Path Readability matters across supported screen sizes: the input, intermediate lenses, and output should remain visible together."
+
 Dev: "Does the first implementation need final-quality glass?"
 Domain expert: "No. Prototype Rendering should establish the composition and behavior first, while preserving the importance of high-quality glass in the final Artwork."
 
 Dev: "Is the scene a full 3D environment?"
-Domain expert: "No. It is an Optical Bench: a fixed 3D composition whose input surface, Relief Lens Layers, and Output Screen read as one physically plausible optical path."
+Domain expert: "No. It is an Optical Bench: a fixed 3D composition whose Input Surface, Relief Lens Layers, and Output Screen read as one physically plausible optical path."
+
+Dev: "Can the lenses be shifted sideways or fanned out so the camera can see them better?"
+Domain expert: "No. Optical Instrument Coherence matters: readability should come from camera composition, spacing, transparency, and scale, not from physically impossible layer placement."
+
+Dev: "Should the optical path read as a left-to-right rail?"
+Domain expert: "No. A Depth-Aligned Optical Bench is preferred: the light path should advance from the viewer-facing foreground into scene depth, while preserving readability of the input, intermediate lenses, and output."
+
+Dev: "Does Propagation Direction define the digit's left and right?"
+Domain expert: "No. Propagation Direction describes where light travels in the Optical Bench; Canonical Input Orientation describes how the Handwritten Input is read."
 
 Dev: "Can the screen be rotated separately to make the digits easier to read?"
 Domain expert: "No. The screen belongs to the same optical axis as the lenses; readability should come from camera composition rather than breaking the physical arrangement."
@@ -134,6 +225,9 @@ Domain expert: "No. Response Timing should feel live, with only the Confidence G
 
 Dev: "Does the optical simulation itself classify the digit?"
 Domain expert: "No. A Classifier provides the candidate strengths, and the Artwork uses them to drive the Confidence Glow on the Output Screen."
+
+Dev: "Can Classifier Normalization mirror or rotate the Handwritten Input if it improves recognition?"
+Domain expert: "No. It may prepare the input for recognition, but it must preserve Canonical Input Orientation so a drawn digit is not interpreted as its mirror image."
 
 Dev: "Should intermediate lens patterns only be blurred copies of the input?"
 Domain expert: "No. The Diffraction Pattern should remain input-derived, but later layers should visually organize toward the candidate digits indicated by the Classifier."

@@ -39,17 +39,15 @@ button {
   position: relative;
   width: 100vw;
   height: 100vh;
-  min-width: 1024px;
-  min-height: 620px;
+  height: 100dvh;
   overflow: hidden;
   background: #f4f7f8;
 }
 
 .bench-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
-  width: 100%;
-  height: 100%;
-  cursor: crosshair;
   touch-action: none;
 }
 
@@ -59,20 +57,74 @@ button {
   height: 100%;
 }
 
-.clear-button {
+.drawing-panel {
   position: absolute;
-  top: 28px;
-  right: 32px;
+  z-index: 4;
+  display: none;
+  width: min(280px, calc(100vw - 48px));
+  color: rgba(42, 58, 62, 0.78);
+}
+
+.drawing-panel--open {
+  display: block;
+}
+
+.drawing-panel__surface {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(98, 128, 136, 0.22);
+  border-radius: 8px;
+  background:
+    radial-gradient(
+      circle at 42% 34%,
+      rgba(255, 255, 255, 0.96),
+      rgba(238, 247, 249, 0.7) 62%,
+      rgba(214, 230, 234, 0.38)
+    ),
+    rgba(249, 253, 254, 0.84);
+  box-shadow:
+    0 18px 48px rgba(42, 62, 68, 0.16),
+    inset 0 0 28px rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
+}
+
+.drawing-panel__surface::before {
+  position: absolute;
+  inset: 9.5%;
+  border: 1px solid rgba(76, 128, 139, 0.22);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 24px rgba(97, 192, 210, 0.1),
+    0 0 22px rgba(148, 225, 236, 0.12);
+  content: "";
+  pointer-events: none;
+}
+
+.drawing-panel__canvas {
+  position: absolute;
+  inset: 9.5%;
+  width: 81%;
+  height: 81%;
+  border-radius: 50%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.drawing-panel__clear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border: 1px solid rgba(100, 132, 140, 0.24);
   border-radius: 999px;
   color: rgba(42, 58, 62, 0.72);
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.62);
   box-shadow:
-    0 12px 38px rgba(47, 70, 76, 0.08),
+    0 12px 32px rgba(47, 70, 76, 0.1),
     inset 0 0 18px rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
   cursor: pointer;
@@ -83,27 +135,51 @@ button {
     transform 160ms ease;
 }
 
-.clear-button span {
+.drawing-panel__clear span {
   transform: translateY(-1px);
-  font-size: 25px;
+  font-size: 23px;
   line-height: 1;
 }
 
-.clear-button:hover:not(:disabled) {
+.drawing-panel__clear:hover:not(:disabled) {
   border-color: rgba(66, 106, 116, 0.4);
   color: #182326;
   transform: scale(1.03);
 }
 
-.clear-button:disabled {
+.drawing-panel__clear:disabled {
   opacity: 0.28;
   cursor: default;
 }
 
+@media (min-width: 861px) and (min-height: 620px) {
+  .drawing-panel--open {
+    bottom: max(24px, env(safe-area-inset-bottom));
+    right: max(24px, env(safe-area-inset-right));
+    width: min(28vw, 280px);
+  }
+}
+
+@media (max-width: 860px), (max-height: 619px) {
+  .drawing-panel--open {
+    bottom: max(14px, env(safe-area-inset-bottom));
+    right: max(14px, env(safe-area-inset-right));
+    width: min(54vw, 240px, calc(100vw - 32px));
+  }
+}
+
+@media (orientation: landscape) and (max-height: 619px) {
+  .drawing-panel--open {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+    width: min(30vw, 230px, calc(100vh - 32px));
+  }
+}
+
 .camera-debug {
   position: absolute;
+  top: 24px;
   left: 24px;
-  bottom: 24px;
   width: 224px;
   padding: 12px;
   border: 1px solid rgba(85, 116, 124, 0.18);
@@ -176,8 +252,10 @@ button {
   font-size: 11px;
 }
 
-@media (max-width: 1023px), (max-height: 619px) {
-  body {
-    overflow: auto;
+@media (max-width: 520px) {
+  .camera-debug {
+    top: 12px;
+    left: 12px;
+    width: min(224px, calc(100vw - 24px));
   }
 }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {
   DIGITS,
   INPUT_SIZE,
+  INPUT_SURFACE_RADIUS,
   LENS_STOPS,
   OPTICAL_AXIS,
   OUTPUT_ROTATION,
@@ -81,30 +82,30 @@ export function createScene(
     color: "#f2f5f6",
     roughness: 0.82,
   });
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(9.5, 5.3), wallMaterial);
-  wall.position.set(0.3, 0, -1.18);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 5.6), wallMaterial);
+  wall.position.set(0, 0.08, -3.18);
   scene.add(wall);
 
   const shelf = new THREE.Mesh(
-    new THREE.PlaneGeometry(9.5, 3.1),
+    new THREE.PlaneGeometry(5.8, 7),
     new THREE.MeshStandardMaterial({ color: "#e8eef0", roughness: 0.78 }),
   );
   shelf.rotation.x = -Math.PI / 2;
-  shelf.position.set(0.3, -1.55, 0.35);
+  shelf.position.set(0, -1.42, -0.15);
   scene.add(shelf);
 
   const inputCanvas = createCanvas(INPUT_SIZE);
   const inputTexture = new THREE.CanvasTexture(inputCanvas);
   inputTexture.colorSpace = THREE.SRGBColorSpace;
   const inputMaterial = makeGlassMaterial(inputTexture, 0.82);
-  const circleGeometry = new THREE.CircleGeometry(0.52, 128);
+  const circleGeometry = new THREE.CircleGeometry(INPUT_SURFACE_RADIUS, 128);
   const inputMesh = new THREE.Mesh(circleGeometry, inputMaterial);
   inputMesh.position.copy(pointOnAxis(SURFACE_STOPS[0]));
   applySurfaceRotation(inputMesh);
   scene.add(inputMesh);
 
   const inputRim = new THREE.Mesh(
-    new THREE.TorusGeometry(0.525, 0.009, 12, 160),
+    new THREE.TorusGeometry(INPUT_SURFACE_RADIUS + 0.005, 0.009, 12, 160),
     new THREE.MeshBasicMaterial({
       color: "#b7dce4",
       transparent: true,
@@ -135,9 +136,7 @@ export function createScene(
       new THREE.CircleGeometry(0.52, 160),
       makeGlassMaterial(texture, 0.54),
     );
-    lens.position.copy(
-      pointOnAxis(LENS_STOPS[index], Math.sin(index * 0.6) * 0.035),
-    );
+    lens.position.copy(pointOnAxis(LENS_STOPS[index]));
     applySurfaceRotation(lens);
     scene.add(lens);
 
@@ -203,8 +202,6 @@ export function createScene(
     classificationInFlight: false,
     classificationQueued: false,
     hasInk: false,
-    activePointerId: null,
-    lastInkPoint: null,
     animationFrame: 0,
     onInkChange,
   };
