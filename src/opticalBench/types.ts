@@ -17,6 +17,14 @@ export type CameraConfig = {
   fov: number;
 };
 
+export type InputLightSample = {
+  x: number;
+  y: number;
+  nx: number;
+  ny: number;
+  alpha: number;
+};
+
 export type SceneState = {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -26,6 +34,9 @@ export type SceneState = {
   inputMesh: THREE.Mesh;
   inputCanvas: HTMLCanvasElement;
   inputTexture: THREE.CanvasTexture;
+  inputLightSamples: InputLightSample[];
+  textureDirty: boolean;
+  lensBaseCanvases: HTMLCanvasElement[];
   lensCanvases: HTMLCanvasElement[];
   lensTextures: THREE.CanvasTexture[];
   outputCanvas: HTMLCanvasElement;

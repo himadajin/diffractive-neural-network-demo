@@ -22,7 +22,11 @@ import {
   createScene,
   resize,
 } from "./opticalBench/scene";
-import { drawInputStroke, resetInputCanvas } from "./opticalBench/textures";
+import {
+  drawInputStroke,
+  resetInputCanvas,
+  sampleInputLight,
+} from "./opticalBench/textures";
 import type { CameraConfig, Point, SceneState } from "./opticalBench/types";
 
 function isDebugMode() {
@@ -104,7 +108,10 @@ export function OpticalBenchCanvas() {
     state.hasInk = false;
     state.classificationRequestId += 1;
     state.classificationQueued = false;
+    state.confidence = Array(DIGITS).fill(0);
     state.targetConfidence = Array(DIGITS).fill(0);
+    state.inputLightSamples = [];
+    state.textureDirty = true;
     state.onInkChange(false);
     activePanelPointerIdRef.current = null;
     lastPanelPointRef.current = null;
@@ -117,6 +124,8 @@ export function OpticalBenchCanvas() {
     drawInputStroke(state.inputCanvas, from, to);
     state.inputTexture.needsUpdate = true;
     state.hasInk = true;
+    state.inputLightSamples = sampleInputLight(state.inputCanvas);
+    state.textureDirty = true;
     requestClassification(state);
     state.onInkChange(true);
     syncDrawingPanelCanvas(drawingCanvasRef.current, state);
