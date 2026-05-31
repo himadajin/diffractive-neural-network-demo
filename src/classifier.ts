@@ -7,22 +7,23 @@ const MIN_INK_ALPHA = 12;
 
 let sessionPromise: Promise<ort.InferenceSession> | null = null;
 
+const appAssetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
+const absoluteAppAssetUrl = (path: string) =>
+  new URL(appAssetUrl(path), window.location.href).href;
+
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.wasmPaths = {
-  mjs: new URL(
-    "ort/ort-wasm-simd-threaded.jsep.mjs",
-    import.meta.env.BASE_URL,
-  ).toString(),
-  wasm: new URL(
-    "ort/ort-wasm-simd-threaded.jsep.wasm",
-    import.meta.env.BASE_URL,
-  ).toString(),
+  mjs: absoluteAppAssetUrl("ort/ort-wasm-simd-threaded.jsep.mjs"),
+  wasm: absoluteAppAssetUrl("ort/ort-wasm-simd-threaded.jsep.wasm"),
 };
 
 function getSession() {
-  sessionPromise ??= ort.InferenceSession.create("/models/mnist-8.onnx", {
-    executionProviders: ["wasm"],
-  });
+  sessionPromise ??= ort.InferenceSession.create(
+    appAssetUrl("models/mnist-8.onnx"),
+    {
+      executionProviders: ["wasm"],
+    },
+  );
   return sessionPromise;
 }
 
