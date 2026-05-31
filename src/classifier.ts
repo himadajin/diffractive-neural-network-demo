@@ -68,6 +68,11 @@ function normalizeDigit(canvas: HTMLCanvasElement) {
   const drawHeight = height * scale;
   const offsetX = (MODEL_SIZE - drawWidth) / 2;
   const offsetY = (MODEL_SIZE - drawHeight) / 2;
+  ctx.save();
+  // The input surface is viewed from its back side, so the backing canvas is
+  // horizontally mirrored relative to what the viewer draws.
+  ctx.translate(MODEL_SIZE, 0);
+  ctx.scale(-1, 1);
   ctx.drawImage(
     canvas,
     minX,
@@ -79,6 +84,7 @@ function normalizeDigit(canvas: HTMLCanvasElement) {
     drawWidth,
     drawHeight,
   );
+  ctx.restore();
 
   const normalizedImage = ctx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
   const input = new Float32Array(MODEL_SIZE * MODEL_SIZE);

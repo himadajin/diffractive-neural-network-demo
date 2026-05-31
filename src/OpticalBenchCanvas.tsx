@@ -47,6 +47,8 @@ type SceneState = {
   confidence: number[];
   targetConfidence: number[];
   classificationRequestId: number;
+  classificationInFlight: boolean;
+  classificationQueued: boolean;
   hasInk: boolean;
   activePointerId: number | null;
   lastInkPoint: Point | null;
@@ -614,6 +616,8 @@ function createScene(
     confidence: Array(DIGITS).fill(0),
     targetConfidence: Array(DIGITS).fill(0),
     classificationRequestId: 0,
+    classificationInFlight: false,
+    classificationQueued: false,
     hasInk: false,
     activePointerId: null,
     lastInkPoint: null,
@@ -650,10 +654,8 @@ function readNumber(value: string, fallback: number) {
   return Number.isFinite(next) ? next : fallback;
 }
 
-function requestClassification(state: SceneState) {
-  const requestId = state.classificationRequestId + 1;
-  state.classificationRequestId = requestId;
-  state.targetConfidence = visualFallbackConfidence(state.inputCanvas);
+function runClassification(state: SceneState, requestId: number) {
+  state.classificationInFlight = true;
   void classifyDigit(state.inputCanvas)
     .then((confidence) => {
       if (state.classificationRequestId !== requestId || !state.hasInk) return;
@@ -663,7 +665,24 @@ function requestClassification(state: SceneState) {
     })
     .catch((error: unknown) => {
       console.warn("Digit classifier failed", error);
+    })
+    .finally(() => {
+      state.classificationInFlight = false;
+      if (!state.classificationQueued || !state.hasInk) return;
+      state.classificationQueued = false;
+      requestClassification(state);
     });
+}
+
+function requestClassification(state: SceneState) {
+  const requestId = state.classificationRequestId + 1;
+  state.classificationRequestId = requestId;
+  state.targetConfidence = visualFallbackConfidence(state.inputCanvas);
+  if (state.classificationInFlight) {
+    state.classificationQueued = true;
+    return;
+  }
+  runClassification(state, requestId);
 }
 
 function isDebugMode() {
@@ -718,6 +737,7 @@ export const OpticalBenchCanvas = forwardRef<
       state.inputTexture.needsUpdate = true;
       state.hasInk = false;
       state.classificationRequestId += 1;
+      state.classificationQueued = false;
       state.targetConfidence = Array(DIGITS).fill(0);
       state.lastInkPoint = null;
       state.onInkChange(false);
