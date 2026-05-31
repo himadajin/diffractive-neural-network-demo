@@ -84,6 +84,34 @@ _Avoid_: Animated layer, changing lens, abstract neural-network layer, flat glas
 The luminous field shown on each optical surface as the primary visual expression of light changing through the Artwork. It originates from the Handwritten Input and gradually organizes toward the candidate digits suggested by the Classifier, without claiming to be a physically exact diffraction calculation.
 _Avoid_: Laser ray
 
+**Projected Light Field**:
+The information-bearing light visible on the Input Surface and Relief Lens Layers. It may appear as a low-resolution cell field while the optical surface itself keeps high-fidelity glass, relief, reflection, and shadow qualities.
+_Avoid_: Pixelated lens, raw pasted input, texture resolution, UI preview
+
+**Luminous Cell Field**:
+A Projected Light Field whose visible information is carried by an array of glowing cells rather than by a pasted bitmap. On the Input Surface it can represent the same normalized input seen by the Classifier while still reading as light caught in glass; visible grid lines should not compete with the optical surface.
+_Avoid_: Pixel art sticker, sharp nearest-neighbor image, flat preview, drawn grid
+
+**Relief-Revealed Cell Field**:
+A Luminous Cell Field whose cells appear to emerge from light interacting with glass relief, reflection, and subtle interference on the optical surface. The cells should not read as directly drawn squares with graphic edge treatment.
+_Avoid_: Softened pixel image, edge-faded cell, rounded pixel, visible cell border
+
+**Resolution Progression**:
+The visual change in Projected Light Field density across the Optical Bench: the input begins as a normalized low-resolution cell field, may expand into a finer circuit-like field, then compress toward candidate output regions. It is an artistic structure for optical readability and performance, not an explanation of the Classifier's internal layers.
+_Avoid_: Neural-network layer diagram, exact CNN feature map, fixed-resolution pipeline
+
+**Circuit-Like Light Field**:
+A finer Projected Light Field where light appears to branch and organize along the Relief Lens Layer's fixed optical structure. It should read as light being routed through a surface, not as a higher-resolution copy of the Handwritten Input.
+_Avoid_: Upscaled input image, feature-map diagram, decorative circuit board
+
+**Feature-Bundle Light Field**:
+A compressed Projected Light Field where routed light gathers into clusters that suggest digit parts such as arcs, strokes, and turns. It should imply recognition taking shape without becoming a labeled model feature map.
+_Avoid_: CNN feature map, labeled stroke detector, direct digit reconstruction
+
+**Candidate-Splitting Light Field**:
+A late-stage Projected Light Field where gathered light divides toward multiple candidate digit regions before reaching the Output Screen. The strongest candidate may dominate, but weaker alternatives should remain visible as optical evidence rather than disappearing.
+_Avoid_: Winner-only beam, probability chart, visible laser fan
+
 **Guiding Beam**:
 A development-only or highly restrained directional cue between optical surfaces. The Artwork should express propagation primarily through light landing on lens surfaces, relief shading, reflections, and changing diffraction patterns rather than visible connecting lines or component cast shadows.
 _Avoid_: Viewer-facing light rays, primary light visualization
