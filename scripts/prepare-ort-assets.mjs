@@ -3,14 +3,15 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const source = resolve(
-  root,
-  "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm",
-);
-const destination = resolve(
-  root,
-  "public/ort/ort-wasm-simd-threaded.jsep.wasm",
-);
+const files = [
+  "ort-wasm-simd-threaded.jsep.mjs",
+  "ort-wasm-simd-threaded.jsep.wasm",
+];
 
-await mkdir(dirname(destination), { recursive: true });
-await copyFile(source, destination);
+for (const file of files) {
+  const source = resolve(root, "node_modules/onnxruntime-web/dist", file);
+  const destination = resolve(root, "public/ort", file);
+
+  await mkdir(dirname(destination), { recursive: true });
+  await copyFile(source, destination);
+}

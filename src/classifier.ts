@@ -9,8 +9,14 @@ let sessionPromise: Promise<ort.InferenceSession> | null = null;
 
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.wasmPaths = {
-  mjs: "/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs",
-  wasm: "/ort/ort-wasm-simd-threaded.jsep.wasm",
+  mjs: new URL(
+    "ort/ort-wasm-simd-threaded.jsep.mjs",
+    import.meta.env.BASE_URL,
+  ).toString(),
+  wasm: new URL(
+    "ort/ort-wasm-simd-threaded.jsep.wasm",
+    import.meta.env.BASE_URL,
+  ).toString(),
 };
 
 function getSession() {
