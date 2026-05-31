@@ -115,7 +115,7 @@ Dev: "Can the screen be rotated separately to make the digits easier to read?"
 Domain expert: "No. The screen belongs to the same optical axis as the lenses; readability should come from camera composition rather than breaking the physical arrangement."
 
 Dev: "Do the optical layers change for each input?"
-Domain expert: "No. The Relief Glass Layers are fixed physical-looking elements. The light passing through them changes."
+Domain expert: "No. The Relief Lens Layers are fixed physical-looking elements. The light passing through them changes."
 
 Dev: "Should the Artwork show light as laser lines or object shadows?"
 Domain expert: "No. The main light expression is the Diffraction Pattern, reflected highlights, Relief Shading, and brightness on the Output Screen; Guiding Beams are only for restrained development cues."
