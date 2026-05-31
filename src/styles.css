@@ -143,21 +143,20 @@ button {
     transform 160ms ease;
 }
 
-.drawing-panel__clear span {
-  transform: translateY(-1px);
-  font-size: 23px;
-  line-height: 1;
+.drawing-panel__clear-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.85;
 }
 
 .drawing-panel__clear:hover:not(:disabled) {
   border-color: rgba(66, 106, 116, 0.4);
   color: #182326;
   transform: scale(1.03);
-}
-
-.drawing-panel__clear:disabled {
-  opacity: 0.28;
-  cursor: default;
 }
 
 @media (min-width: 861px) and (min-height: 620px) {

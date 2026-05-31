@@ -658,16 +658,26 @@ export function OpticalBenchCanvas() {
             onMouseLeave={handlePanelMouseEnd}
           />
         </div>
-        <button
-          className="drawing-panel__clear"
-          type="button"
-          aria-label="Clear drawing"
-          title="Clear drawing"
-          disabled={!hasInk}
-          onClick={clear}
-        >
-          <span aria-hidden="true">×</span>
-        </button>
+        {hasInk ? (
+          <button
+            className="drawing-panel__clear"
+            type="button"
+            aria-label="Clear drawing"
+            title="Clear drawing"
+            onClick={clear}
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              focusable="false"
+              className="drawing-panel__clear-icon"
+            >
+              <path d="M16.6 3.9a2.1 2.1 0 0 1 3 3l-8.8 8.8a2.4 2.4 0 0 1-3.4 0l-3-3a2.1 2.1 0 0 1 0-3z" />
+              <path d="m7.1 15.4 1.5 1.5h8.9" />
+              <path d="M13.2 7.3 17 11.1" />
+            </svg>
+          </button>
+        ) : null}
       </section>
       {debug ? (
         <CameraDebugControls
