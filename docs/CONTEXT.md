@@ -77,51 +77,67 @@ The optical direction of the Artwork: the Handwritten Input enters from the view
 _Avoid_: Left-to-right flow, screen-vertical flow, camera direction, texture orientation
 
 **Relief Lens Layer**:
-One of four fixed circular optical elements with visible surface relief, like a learned lens in a telescope-like or microscope-like light circuit. Each layer changes the meaning and distribution of light passing through it, while the layer itself does not change when the Handwritten Input changes. Its relief should primarily read as continuous optical structure, with only subtle learned irregularity.
-_Avoid_: Animated layer, changing lens, abstract neural-network layer, flat glass plate
+One of four fixed circular optical elements with visible surface relief, like a learned lens in a telescope-like or microscope-like light circuit. Each layer's glass relief is a fixed optical circuit that interferes, diffracts, and transforms the light passing through it; the layer itself does not change when the Handwritten Input changes. Its relief should primarily read as continuous optical structure, with only subtle learned irregularity.
+_Avoid_: Animated layer, changing lens, abstract neural-network layer, flat glass plate, input-reactive relief
 
 **Diffraction Pattern**:
 The luminous field shown on each optical surface as the primary visual expression of light changing through the Artwork. It originates from the Handwritten Input and gradually organizes toward the candidate digits suggested by the Classifier, without claiming to be a physically exact diffraction calculation.
 _Avoid_: Laser ray
+
+**Fixed Optical Circuit**:
+The pre-existing relief structure on each Relief Lens Layer that routes and transforms light without changing its own shape. Viewer input changes the Projected Light Field interacting with the circuit, not the circuit geometry itself.
+_Avoid_: Animated circuit, reconfigured lens, input-drawn relief, adaptive glass pattern
+
+**Circuit Relief Visibility**:
+The restrained visibility of the Fixed Optical Circuit as glass relief, reflection, and thin shadow that remains stable while the Projected Light Field changes. The viewer should read changing recognition behavior primarily through luminous cell distribution, not through circuit lines that redraw themselves.
+_Avoid_: Animated trace, changing groove, drawn circuit line, input-reactive wiring
 
 **Projected Light Field**:
 The information-bearing light visible on the Input Surface and Relief Lens Layers. It may appear as a low-resolution cell field while the optical surface itself keeps high-fidelity glass, relief, reflection, and shadow qualities.
 _Avoid_: Pixelated lens, raw pasted input, texture resolution, UI preview
 
 **Luminous Cell Field**:
-A Projected Light Field whose visible information is carried by an array of glowing cells rather than by a pasted bitmap. It belongs to the Relief Lens Layers, where the Handwritten Input starts to transform into routed optical information; visible grid lines should not compete with the optical surface.
-_Avoid_: Pixel art sticker, sharp nearest-neighbor image, flat preview, drawn grid, deliberate cell spacing
+A Projected Light Field whose visible information is carried by a low-resolution array of square luminous cells rather than by a pasted bitmap. It belongs to the Relief Lens Layers, where the Handwritten Input starts to transform into routed optical information; the cells should read through stepped light intensity on glass, not through explicit gaps or borders.
+_Avoid_: Pixel art sticker, sharp nearest-neighbor image, flat preview, drawn grid, pasted cell texture, cell border, deliberate cell gap
 
 **Input Mask**:
 The dark, light-blocking appearance of the Handwritten Input as it enters the optical path on the Input Surface. It should preserve the Drawing Panel's stable, smooth hand-drawn shape while reading as optical masking on glass, not as blue ink, a glowing digit, or a normalized cell field.
 _Avoid_: Glowing handwriting, colored marker, UI ink, recentered display mask, pixelated input mask
 
 **Monochrome Light Field**:
-A Projected Light Field whose primary contrast is blocked darkness against transmitted white light. The Input Surface may use strong dark masking, while Relief Lens Layers should reduce heavy black coverage and rely more on transmitted white light, pale reflection, and thin shadow traces. It may use subtle cool glass tints, but the optical information should read mainly through black, white, and gray values.
-_Avoid_: Blue-only propagation, colored feature map, neon light path, black pixel stamp
+A Projected Light Field whose primary contrast is blocked darkness at the Input Surface and transmitted white light on the Relief Lens Layers. The Input Surface may use strong dark masking, while Relief Lens Layers should make white luminous cells primary and use darkness only as relief shadow, occlusion, or restrained blocking detail.
+_Avoid_: Blue-only propagation, colored feature map, neon light path, black pixel stamp, dark-cell feature map
+
+**Layer Light Continuity**:
+The visual requirement that the Projected Light Field remains confidently luminous across all Relief Lens Layers, even as its spatial organization changes. Later layers may redistribute, concentrate, or reduce the lit area, but their peak white intensity should feel consistent rather than weaker, dirtier, or lower-energy than earlier layers.
+_Avoid_: Fading pipeline, weak rear layer, dirty gray trace, disappearing light, dim rear maximum
+
+**Fixed Cell Field Resolution**:
+The cell structure of the Relief Lens Layers uses the same 28-by-28 square-cell vocabulary across the Optical Bench. Recognition progress should read through changing light distribution, routing, gathering, and candidate emphasis rather than through finer rear-layer texture.
+_Avoid_: Increasing feature-map resolution, fine rear texture, resolution-as-progress
 
 **Relief-Revealed Cell Field**:
-A Luminous Cell Field whose cells appear to emerge from light interacting with glass relief, reflection, and subtle interference on the optical surface. The cells should not read as directly drawn squares with graphic edge treatment.
-_Avoid_: Softened pixel image, edge-faded cell, rounded pixel, visible cell border
+A Luminous Cell Field whose white cells appear to emerge from light interacting with thick glass relief, reflection, and subtle interference on the optical surface. The cells should not read as directly drawn squares with graphic edge treatment.
+_Avoid_: Softened pixel image, edge-faded cell, rounded pixel, visible cell border, thin flat glass
 
 **Resolution Progression**:
-The visual change in Projected Light Field density across the Optical Bench: the Input Surface begins as a smooth Input Mask, the first Relief Lens Layer keeps the Handwritten Input legible while beginning optical transformation, later layers expand into a finer circuit-like field, gather into feature bundles, then split toward candidate output regions. It is an artistic structure for optical readability and performance, not an explanation of the Classifier's internal layers.
-_Avoid_: Neural-network layer diagram, exact CNN feature map, fixed-resolution pipeline
+The visual change in Projected Light Field organization across the Optical Bench: the Input Surface begins as a smooth Input Mask, then Relief Lens Layers keep a Fixed Cell Field Resolution while the light bends, routes, gathers, and splits toward candidate output regions. It is an artistic structure for optical readability and performance, not an explanation of the Classifier's internal layers.
+_Avoid_: Neural-network layer diagram, exact CNN feature map, increasing-resolution pipeline, fine rear texture
 
 **First Lens Transformation**:
-The first Relief Lens Layer's light field, where the Handwritten Input remains legible but begins to bend, branch, diffuse, and shift through the optical structure. It should not be a direct copy of the Input Mask or a pasted low-resolution preview.
+The first Relief Lens Layer's 28-by-28 light field, where the Handwritten Input remains legible but begins to bend, branch, diffuse, and shift through the Fixed Optical Circuit. It should not be a direct copy of the Input Mask or a pasted low-resolution preview.
 _Avoid_: Duplicate input surface, pixelated copy, unchanged mask, raw classifier grid
 
 **Circuit-Like Light Field**:
-A finer Projected Light Field where light appears to branch and organize along the Relief Lens Layer's fixed optical structure. It should read as light being routed through a surface, not as a higher-resolution copy of the Handwritten Input.
+A 28-by-28 Projected Light Field where light appears to shift, branch, and organize along the Relief Lens Layer's Fixed Optical Circuit. It should read as light being routed through a surface, not as a finer texture or a higher-resolution copy of the Handwritten Input.
 _Avoid_: Upscaled input image, feature-map diagram, decorative circuit board
 
 **Feature-Bundle Light Field**:
-A compressed Projected Light Field where routed light gathers into clusters that suggest digit parts such as arcs, strokes, and turns. It should imply recognition taking shape without becoming a labeled model feature map.
+A 28-by-28 Projected Light Field where routed light gathers into luminous clusters that suggest digit parts such as arcs, strokes, and turns. It should imply recognition taking shape without becoming a labeled model feature map.
 _Avoid_: CNN feature map, labeled stroke detector, direct digit reconstruction
 
 **Candidate-Splitting Light Field**:
-A late-stage Projected Light Field where gathered light divides toward multiple candidate digit regions before reaching the Output Screen. The strongest candidate may dominate, but weaker alternatives should remain visible as optical evidence rather than disappearing.
+A late-stage 28-by-28 Projected Light Field where gathered light divides toward multiple candidate digit regions before reaching the Output Screen. The strongest candidate may dominate, but weaker alternatives should remain visible as optical evidence rather than disappearing.
 _Avoid_: Winner-only beam, probability chart, visible laser fan
 
 **Guiding Beam**:
@@ -145,12 +161,12 @@ The faint resting illumination of the Optical Bench before the viewer draws: sub
 _Avoid_: Blank screen, sample input, resting result glow
 
 **Output Screen**:
-The final passive, opaque projection surface of the Artwork, marked with upright printed digits 0 through 9 arranged around a circle. The screen does not perform classification; the Relief Lens Layers determine where light lands.
-_Avoid_: Active receptor array, transparent screen, dashboard, classifier display
+The final passive, opaque projection surface of the Artwork, marked with upright printed digits 0 through 9 arranged around a circle. The printed digits are fixed registration marks; the screen does not perform classification, and the Relief Lens Layers determine where light lands.
+_Avoid_: Active receptor array, transparent screen, dashboard, classifier display, changing typography
 
 **Confidence Glow**:
-The brightness landing on each printed digit mark of the Output Screen, corresponding to how strongly the Artwork treats that digit as a candidate result. It should read as brighter or dimmer digits in fixed positions, not as larger color fields around digits.
-_Avoid_: Winner-only output, probability halo, expanding color field
+The white light landing on or behind each fixed printed digit mark of the Output Screen, corresponding to how strongly the Artwork treats that digit as a candidate result. It should read as projected light intensity at fixed positions, not as changes to digit size, weight, color, or opacity.
+_Avoid_: Winner-only output, probability halo, expanding color field, bold probability digit, dimmed typography
 
 **Response Timing**:
 The Artwork's temporal behavior: Handwritten Input and intermediate light patterns respond immediately, while Confidence Glow follows smoothly with slight inertia.

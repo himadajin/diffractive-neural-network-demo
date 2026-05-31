@@ -2,6 +2,9 @@ import { DIGIT_ANCHORS, DIGITS } from "./constants";
 import { circleMask } from "./canvas";
 import type { InputLightSample, Point } from "./types";
 
+const CELL_FIELD_GRID_SIZE = 28;
+const CELL_FIELD_SCALE = 0.78;
+
 export function resetInputCanvas(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return;
@@ -42,12 +45,6 @@ function strongestDigit(confidence: number[]) {
   return { index, value };
 }
 
-function confidenceDigitFill(strength: number) {
-  const lift = Math.pow(Math.max(0, Math.min(1, strength)), 0.55);
-  const value = Math.round(114 - lift * 106);
-  return `rgb(${value}, ${value}, ${value})`;
-}
-
 function outputDisplayStrength(confidence: number[], strength: number) {
   const maxConfidence = Math.max(...confidence);
   if (maxConfidence <= 0.0005 || strength <= 0.0005) return 0;
@@ -71,6 +68,227 @@ function cellGeometry(canvasSize: number, gridSize: number, fieldScale = 0.78) {
   const origin = (canvasSize - fieldSize) / 2;
 
   return { cellSize, fieldSize, origin };
+}
+
+function cellIndex(x: number, y: number) {
+  return y * CELL_FIELD_GRID_SIZE + x;
+}
+
+function addFieldEnergy(
+  field: Float32Array,
+  x: number,
+  y: number,
+  strength: number,
+) {
+  if (
+    x < 0 ||
+    x >= CELL_FIELD_GRID_SIZE ||
+    y < 0 ||
+    y >= CELL_FIELD_GRID_SIZE
+  ) {
+    return;
+  }
+
+  const index = cellIndex(x, y);
+  const amount = clamp01(strength);
+  field[index] = 1 - (1 - field[index]) * (1 - amount);
+}
+
+function addFieldCluster(
+  field: Float32Array,
+  x: number,
+  y: number,
+  strength: number,
+  spread = 0,
+) {
+  const gx = Math.round(x);
+  const gy = Math.round(y);
+  addFieldEnergy(field, gx, gy, strength);
+  if (spread <= 0) return;
+
+  addFieldEnergy(field, gx - 1, gy, strength * spread * 0.56);
+  addFieldEnergy(field, gx + 1, gy, strength * spread * 0.56);
+  addFieldEnergy(field, gx, gy - 1, strength * spread * 0.56);
+  addFieldEnergy(field, gx, gy + 1, strength * spread * 0.56);
+  addFieldEnergy(field, gx - 1, gy - 1, strength * spread * 0.24);
+  addFieldEnergy(field, gx + 1, gy - 1, strength * spread * 0.24);
+  addFieldEnergy(field, gx - 1, gy + 1, strength * spread * 0.24);
+  addFieldEnergy(field, gx + 1, gy + 1, strength * spread * 0.24);
+}
+
+function normalizeFieldPeak(field: Float32Array) {
+  let max = 0;
+  for (const strength of field) {
+    max = Math.max(max, strength);
+  }
+  if (max <= 0.0005) return field;
+
+  for (let i = 0; i < field.length; i += 1) {
+    field[i] = clamp01(field[i] / max);
+  }
+  return field;
+}
+
+function fieldFromSamples(samples: InputLightSample[]) {
+  const field = new Float32Array(CELL_FIELD_GRID_SIZE * CELL_FIELD_GRID_SIZE);
+  for (const sample of samples) {
+    if (sample.alpha < 0.008) continue;
+    const gx = Math.min(
+      CELL_FIELD_GRID_SIZE - 1,
+      Math.max(0, Math.floor(sample.nx * CELL_FIELD_GRID_SIZE)),
+    );
+    const gy = Math.min(
+      CELL_FIELD_GRID_SIZE - 1,
+      Math.max(0, Math.floor(sample.ny * CELL_FIELD_GRID_SIZE)),
+    );
+    addFieldCluster(field, gx, gy, sample.alpha, 0.18);
+  }
+  return normalizeFieldPeak(field);
+}
+
+function fixedCircuitVector(gx: number, gy: number, layer: number) {
+  const nx = (gx + 0.5) / CELL_FIELD_GRID_SIZE;
+  const ny = (gy + 0.5) / CELL_FIELD_GRID_SIZE;
+  const ring = Math.hypot(nx - 0.5, ny - 0.5);
+  const phase =
+    Math.sin((nx * 7.7 + layer * 0.48) * Math.PI) +
+    Math.cos((ny * 6.1 - layer * 0.34) * Math.PI) +
+    ring * Math.PI * (2.4 + layer * 0.18);
+
+  return {
+    x: Math.cos(phase),
+    y: Math.sin(phase * 0.86 + layer * 0.32),
+  };
+}
+
+function buildFirstLensField(samples: InputLightSample[], layer: number) {
+  const source = fieldFromSamples(samples);
+  const output = new Float32Array(source.length);
+
+  for (let gy = 0; gy < CELL_FIELD_GRID_SIZE; gy += 1) {
+    for (let gx = 0; gx < CELL_FIELD_GRID_SIZE; gx += 1) {
+      const strength = source[cellIndex(gx, gy)];
+      if (strength < 0.025) continue;
+
+      const circuit = fixedCircuitVector(gx, gy, layer);
+      addFieldCluster(output, gx, gy, strength * 0.82, 0.16);
+      addFieldCluster(
+        output,
+        gx + circuit.x * 0.85,
+        gy + circuit.y * 0.85,
+        strength * 0.4,
+        0.1,
+      );
+    }
+  }
+
+  return normalizeFieldPeak(output);
+}
+
+function buildCircuitField(samples: InputLightSample[], layer: number) {
+  const source = fieldFromSamples(samples);
+  const output = new Float32Array(source.length);
+
+  for (let gy = 0; gy < CELL_FIELD_GRID_SIZE; gy += 1) {
+    for (let gx = 0; gx < CELL_FIELD_GRID_SIZE; gx += 1) {
+      const strength = source[cellIndex(gx, gy)];
+      if (strength < 0.025) continue;
+
+      const circuit = fixedCircuitVector(gx, gy, layer);
+      addFieldCluster(
+        output,
+        gx + circuit.x * 1.7,
+        gy + circuit.y * 1.7,
+        strength * 0.72,
+        0.18,
+      );
+      addFieldCluster(
+        output,
+        gx - circuit.y * 1.15,
+        gy + circuit.x * 1.15,
+        strength * 0.36,
+        0.12,
+      );
+      addFieldCluster(output, gx, gy, strength * 0.14, 0);
+    }
+  }
+
+  return normalizeFieldPeak(output);
+}
+
+function buildFeatureBundleField(
+  samples: InputLightSample[],
+  confidence: number[],
+  layer: number,
+) {
+  const source = buildCircuitField(samples, layer);
+  const output = new Float32Array(source.length);
+  const { index: winner, value: winnerStrength } = strongestDigit(confidence);
+  const focus =
+    winnerStrength > 0.01
+      ? (DIGIT_ANCHORS[winner] ?? { x: 0.5, y: 0.5 })
+      : null;
+  const focusX = (focus?.x ?? 0.5) * (CELL_FIELD_GRID_SIZE - 1);
+  const focusY = (focus?.y ?? 0.5) * (CELL_FIELD_GRID_SIZE - 1);
+
+  for (let gy = 0; gy < CELL_FIELD_GRID_SIZE; gy += 1) {
+    for (let gx = 0; gx < CELL_FIELD_GRID_SIZE; gx += 1) {
+      const strength = source[cellIndex(gx, gy)];
+      if (strength < 0.025) continue;
+
+      const circuit = fixedCircuitVector(gx, gy, layer);
+      const pull = 0.18 + winnerStrength * 0.22;
+      addFieldCluster(
+        output,
+        gx + (focusX - gx) * pull + circuit.x * 0.75,
+        gy + (focusY - gy) * pull + circuit.y * 0.75,
+        strength * (0.76 + winnerStrength * 0.22),
+        0.3,
+      );
+    }
+  }
+
+  return normalizeFieldPeak(output);
+}
+
+function buildCandidateField(
+  samples: InputLightSample[],
+  confidence: number[],
+  layer: number,
+) {
+  const source = buildFeatureBundleField(samples, confidence, layer);
+  const output = new Float32Array(source.length);
+
+  confidence.forEach((strength, digit) => {
+    const displayStrength = outputDisplayStrength(confidence, strength);
+    if (displayStrength < 0.015) return;
+
+    const anchor = DIGIT_ANCHORS[digit];
+    const targetX =
+      (0.5 + (anchor.x - 0.5) * 0.74) * (CELL_FIELD_GRID_SIZE - 1);
+    const targetY =
+      (0.5 + (anchor.y - 0.5) * 0.74) * (CELL_FIELD_GRID_SIZE - 1);
+
+    addFieldCluster(output, targetX, targetY, displayStrength, 0.52);
+
+    for (let gy = 0; gy < CELL_FIELD_GRID_SIZE; gy += 1) {
+      for (let gx = 0; gx < CELL_FIELD_GRID_SIZE; gx += 1) {
+        const sourceStrength = source[cellIndex(gx, gy)];
+        if (sourceStrength < 0.045) continue;
+        const circuit = fixedCircuitVector(gx, gy, layer + digit * 0.13);
+        const pull = 0.34 + displayStrength * 0.2;
+        addFieldCluster(
+          output,
+          gx + (targetX - gx) * pull + circuit.x * 0.45,
+          gy + (targetY - gy) * pull + circuit.y * 0.45,
+          sourceStrength * displayStrength * 0.42,
+          0.18,
+        );
+      }
+    }
+  });
+
+  return normalizeFieldPeak(output);
 }
 
 function reliefModulation(nx: number, ny: number, layer = 0) {
@@ -111,6 +329,54 @@ function drawSurfaceInterference(
   ctx.restore();
 }
 
+function drawFixedCircuitRelief(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+  layer: number,
+  alpha = 1,
+) {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  for (let track = 0; track < 18; track += 1) {
+    const radius = size * (0.09 + track * 0.018);
+    const start = layer * 0.36 + track * 0.28;
+    const sweep = Math.PI * (0.82 + (track % 4) * 0.16);
+
+    ctx.beginPath();
+    for (let t = 0; t <= sweep; t += 0.035) {
+      const angle = start + t;
+      const groove =
+        Math.sin(angle * (2.2 + layer * 0.16) + track) * size * 0.005 +
+        Math.cos(angle * 5.4 - layer * 0.7) * size * 0.0025;
+      const bend = Math.sin(track * 1.7 + layer) * size * 0.018;
+      const x =
+        size / 2 +
+        Math.cos(angle) * (radius + groove) +
+        Math.cos(angle * 0.48) * bend;
+      const y =
+        size / 2 +
+        Math.sin(angle) * (radius + groove) +
+        Math.sin(angle * 0.52) * bend;
+      if (t === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.globalCompositeOperation = "source-over";
+    ctx.lineWidth = 1.15 + (track % 3) * 0.18;
+    ctx.strokeStyle = `rgba(34, 56, 62, ${(0.025 + (track % 3) * 0.01) * alpha})`;
+    ctx.stroke();
+
+    ctx.globalCompositeOperation = "screen";
+    ctx.lineWidth = 0.62;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${(0.055 + (track % 4) * 0.01) * alpha})`;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function drawCell(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -134,15 +400,28 @@ function drawCell(
     return;
   }
 
-  ctx.fillStyle = `rgba(8, 14, 16, ${Math.min(0.3, alpha * 0.24)})`;
-  ctx.fillRect(x, y, size, size);
+  const lightAlpha = clamp01(Math.pow(strength, 0.48) * (0.72 + relief * 0.42));
 
-  ctx.fillStyle = `rgba(255, 255, 250, ${Math.min(0.9, alpha * 0.82)})`;
-  ctx.fillRect(x + size * 0.08, y + size * 0.08, size * 0.84, size * 0.84);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = `rgba(8, 28, 34, ${Math.min(0.42, lightAlpha * 0.34)})`;
+  ctx.fillRect(x + size * 0.06, y + size * 0.08, size * 0.98, size * 0.98);
+  ctx.fillStyle = `rgba(112, 160, 168, ${Math.min(0.72, 0.18 + lightAlpha * 0.5)})`;
+  ctx.fillRect(x, y, size * 1.01, size * 1.01);
+  ctx.fillStyle = `rgba(230, 254, 255, ${Math.min(0.42, lightAlpha * 0.3)})`;
+  ctx.fillRect(x, y, size * 1.01, size * 1.01);
 
-  if (strength < 0.34) return;
-  ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.72, strength * 0.46 * relief)})`;
-  ctx.fillRect(x + size * 0.16, y + size * 0.14, size * 0.36, size * 0.18);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = `rgba(218, 250, 255, ${Math.min(0.28, lightAlpha * 0.22)})`;
+  ctx.fillRect(x, y, size * 1.01, size * 1.01);
+  ctx.fillStyle = `rgba(255, 255, 248, ${Math.min(0.38, lightAlpha * 0.24)})`;
+  ctx.fillRect(x, y, size * 1.01, size * 1.01);
+
+  if (strength >= 0.34) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.48, strength * 0.34 * relief)})`;
+    ctx.fillRect(x + size * 0.18, y + size * 0.14, size * 0.42, size * 0.16);
+  }
+
+  ctx.globalCompositeOperation = "source-over";
 }
 
 function drawReliefRevealedCells(
@@ -177,6 +456,74 @@ function drawReliefRevealedCells(
   ctx.restore();
 }
 
+function drawLuminousCellField(
+  ctx: CanvasRenderingContext2D,
+  field: Float32Array,
+  layer: number,
+) {
+  const size = ctx.canvas.width;
+  const { cellSize, origin } = cellGeometry(
+    size,
+    CELL_FIELD_GRID_SIZE,
+    CELL_FIELD_SCALE,
+  );
+  const glowCanvas = document.createElement("canvas");
+  glowCanvas.width = size;
+  glowCanvas.height = size;
+  const glowCtx = glowCanvas.getContext("2d");
+
+  if (glowCtx) {
+    for (let gy = 0; gy < CELL_FIELD_GRID_SIZE; gy += 1) {
+      for (let gx = 0; gx < CELL_FIELD_GRID_SIZE; gx += 1) {
+        const strength = field[cellIndex(gx, gy)];
+        if (strength < 0.025) continue;
+        const alpha = Math.pow(strength, 0.58);
+        glowCtx.fillStyle = `rgba(190, 232, 238, ${Math.min(0.42, alpha * 0.32)})`;
+        glowCtx.fillRect(
+          origin + gx * cellSize,
+          origin + gy * cellSize,
+          cellSize,
+          cellSize,
+        );
+        glowCtx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.5, alpha * 0.36)})`;
+        glowCtx.fillRect(
+          origin + gx * cellSize,
+          origin + gy * cellSize,
+          cellSize,
+          cellSize,
+        );
+      }
+    }
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.filter = "blur(8px)";
+    ctx.globalAlpha = 0.92;
+    ctx.drawImage(glowCanvas, 0, 0);
+    ctx.filter = "blur(2.4px)";
+    ctx.globalAlpha = 0.68;
+    ctx.drawImage(glowCanvas, 0, 0);
+    ctx.restore();
+  }
+
+  ctx.save();
+  for (let gy = 0; gy < CELL_FIELD_GRID_SIZE; gy += 1) {
+    for (let gx = 0; gx < CELL_FIELD_GRID_SIZE; gx += 1) {
+      const strength = field[cellIndex(gx, gy)];
+      if (strength < 0.025) continue;
+      drawCell(
+        ctx,
+        origin + gx * cellSize,
+        origin + gy * cellSize,
+        cellSize,
+        strength,
+        layer,
+      );
+    }
+  }
+  ctx.restore();
+}
+
 function drawSmoothInputMask(
   ctx: CanvasRenderingContext2D,
   inputCanvas: HTMLCanvasElement,
@@ -204,100 +551,7 @@ function drawFirstLensTransformation(
   samples: InputLightSample[],
   layer: number,
 ) {
-  const size = ctx.canvas.width;
-  const gridSize = 28;
-  const { cellSize, origin } = cellGeometry(size, gridSize, 0.78);
-  const field = document.createElement("canvas");
-  field.width = gridSize;
-  field.height = gridSize;
-  const fieldCtx = field.getContext("2d");
-  if (!fieldCtx) return;
-
-  const fieldImage = fieldCtx.createImageData(gridSize, gridSize);
-  for (const sample of samples) {
-    if (sample.alpha < 0.045) continue;
-    const x = Math.max(
-      0,
-      Math.min(gridSize - 1, Math.floor(sample.nx * gridSize)),
-    );
-    const y = Math.max(
-      0,
-      Math.min(gridSize - 1, Math.floor(sample.ny * gridSize)),
-    );
-    const index = (y * gridSize + x) * 4;
-    const alpha = Math.round(clamp01(sample.alpha) * 255);
-    fieldImage.data[index] = 8;
-    fieldImage.data[index + 1] = 14;
-    fieldImage.data[index + 2] = 16;
-    fieldImage.data[index + 3] = Math.max(fieldImage.data[index + 3], alpha);
-  }
-  fieldCtx.putImageData(fieldImage, 0, 0);
-
-  ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-  ctx.imageSmoothingEnabled = true;
-  ctx.filter = "blur(4px)";
-  ctx.globalAlpha = 0.26;
-  ctx.drawImage(
-    field,
-    origin,
-    origin,
-    cellSize * gridSize,
-    cellSize * gridSize,
-  );
-  ctx.filter = "blur(1.2px)";
-  ctx.globalAlpha = 0.34;
-  ctx.drawImage(
-    field,
-    origin,
-    origin,
-    cellSize * gridSize,
-    cellSize * gridSize,
-  );
-
-  ctx.filter = "none";
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (const sample of samples) {
-    if (sample.alpha < 0.08) continue;
-    const phase =
-      Math.sin((sample.nx * 8.5 + layer) * Math.PI) +
-      Math.cos((sample.ny * 7.2 - layer * 0.6) * Math.PI);
-    const x = origin + sample.nx * cellSize * gridSize;
-    const y = origin + sample.ny * cellSize * gridSize;
-    const driftX = Math.cos(phase) * cellSize * (0.45 + sample.alpha * 0.7);
-    const driftY =
-      Math.sin(phase * 0.82) * cellSize * (0.35 + sample.alpha * 0.6);
-    const endX = x + driftX;
-    const endY = y + driftY;
-
-    ctx.strokeStyle = `rgba(8, 14, 16, ${0.04 + sample.alpha * 0.13})`;
-    ctx.lineWidth = 1.2 + sample.alpha * 1.7;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(
-      x + Math.sin(phase) * cellSize * 0.5,
-      y + Math.cos(phase) * cellSize * 0.42,
-      endX,
-      endY,
-    );
-    ctx.stroke();
-
-    ctx.globalCompositeOperation = "screen";
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.14 + sample.alpha * 0.18})`;
-    ctx.lineWidth = 0.55 + sample.alpha * 0.75;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(
-      x + Math.sin(phase) * cellSize * 0.5,
-      y + Math.cos(phase) * cellSize * 0.42,
-      endX,
-      endY,
-    );
-    ctx.stroke();
-    ctx.globalCompositeOperation = "source-over";
-  }
-  ctx.restore();
+  drawLuminousCellField(ctx, buildFirstLensField(samples, layer), layer);
 }
 
 export function sampleInputLight(input: Float32Array | null) {
@@ -308,7 +562,7 @@ export function sampleInputLight(input: Float32Array | null) {
   for (let y = 0; y < gridSize; y += 1) {
     for (let x = 0; x < gridSize; x += 1) {
       const alpha = input[y * gridSize + x];
-      if (alpha < 0.06) continue;
+      if (alpha < 0.012) continue;
       const nx = (x + 0.5) / gridSize;
       const ny = (y + 0.5) / gridSize;
       samples.push({
@@ -429,26 +683,21 @@ export function drawLensBaseTexture(canvas: HTMLCanvasElement, layer: number) {
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, size, size);
 
-  ctx.globalCompositeOperation = "source-over";
-  ctx.lineWidth = 1.15;
-  for (let i = 0; i < 36; i += 1) {
-    const radius = size * (0.08 + i * 0.0115);
-    const phase = layer * 0.8 + i * 0.34;
-    ctx.beginPath();
-    for (let t = 0; t <= Math.PI * 2 + 0.02; t += 0.035) {
-      const wobble =
-        Math.sin(t * (2 + layer) + phase) * size * 0.0055 +
-        Math.sin(t * 7 - phase * 1.7) * size * 0.0022;
-      const r = radius + wobble;
-      const x = size / 2 + Math.cos(t) * r;
-      const y = size / 2 + Math.sin(t) * r;
-      if (t === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    const alpha = 0.08 + (i % 3) * 0.028;
-    ctx.strokeStyle = `rgba(58, 72, 76, ${alpha})`;
-    ctx.stroke();
-  }
+  const edge = ctx.createRadialGradient(
+    size / 2,
+    size / 2,
+    size * 0.38,
+    size / 2,
+    size / 2,
+    size * 0.52,
+  );
+  edge.addColorStop(0, "rgba(255, 255, 255, 0)");
+  edge.addColorStop(0.72, "rgba(255, 255, 255, 0.08)");
+  edge.addColorStop(1, "rgba(36, 64, 70, 0.09)");
+  ctx.fillStyle = edge;
+  ctx.fillRect(0, 0, size, size);
+
+  drawFixedCircuitRelief(ctx, size, layer, 1.18);
 
   ctx.restore();
 }
@@ -458,72 +707,7 @@ function drawCircuitLikeLightField(
   samples: InputLightSample[],
   layer: number,
 ) {
-  const size = ctx.canvas.width;
-  const gridSize = 40;
-  const { cellSize, origin } = cellGeometry(size, gridSize, 0.8);
-
-  ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-  ctx.lineCap = "square";
-  ctx.lineJoin = "bevel";
-
-  for (const sample of samples) {
-    if (sample.alpha < 0.075) continue;
-
-    const sourceX = origin + sample.nx * cellSize * gridSize;
-    const sourceY = origin + sample.ny * cellSize * gridSize;
-    const phase =
-      Math.sin((sample.nx * 9.4 + layer * 0.7) * Math.PI) +
-      Math.cos((sample.ny * 8.1 - layer * 0.5) * Math.PI);
-
-    for (let branch = 0; branch < 2; branch += 1) {
-      const branchPhase = phase + branch * 1.7;
-      const length = cellSize * (1.8 + sample.alpha * 4.5);
-      const midX = sourceX + Math.cos(branchPhase) * length * 0.6;
-      const midY = sourceY + Math.sin(branchPhase * 0.8) * length * 0.6;
-      const endX =
-        sourceX +
-        Math.cos(branchPhase + layer * 0.35) * length +
-        Math.sin(sample.ny * Math.PI * 4) * cellSize * 0.7;
-      const endY =
-        sourceY +
-        Math.sin(branchPhase - layer * 0.25) * length +
-        Math.cos(sample.nx * Math.PI * 5) * cellSize * 0.7;
-
-      ctx.strokeStyle = `rgba(8, 14, 16, ${0.05 + sample.alpha * 0.12})`;
-      ctx.lineWidth = Math.max(1.5, cellSize * (0.16 + sample.alpha * 0.2));
-      ctx.beginPath();
-      ctx.moveTo(sourceX, sourceY);
-      ctx.quadraticCurveTo(midX, midY, endX, endY);
-      ctx.stroke();
-
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.22 + sample.alpha * 0.34})`;
-      ctx.lineWidth = Math.max(0.8, cellSize * (0.08 + sample.alpha * 0.1));
-      ctx.beginPath();
-      ctx.moveTo(sourceX, sourceY);
-      ctx.quadraticCurveTo(midX, midY, endX, endY);
-      ctx.stroke();
-
-      const gx = Math.max(
-        0,
-        Math.min(gridSize - 1, Math.round((endX - origin) / cellSize)),
-      );
-      const gy = Math.max(
-        0,
-        Math.min(gridSize - 1, Math.round((endY - origin) / cellSize)),
-      );
-      drawCell(
-        ctx,
-        origin + gx * cellSize,
-        origin + gy * cellSize,
-        cellSize,
-        sample.alpha * 0.8,
-        layer,
-      );
-    }
-  }
-
-  ctx.restore();
+  drawLuminousCellField(ctx, buildCircuitField(samples, layer), layer);
 }
 
 function drawFeatureBundleLightField(
@@ -532,132 +716,24 @@ function drawFeatureBundleLightField(
   confidence: number[],
   layer: number,
 ) {
-  const size = ctx.canvas.width;
-  const gridSize = 24;
-  const { cellSize, origin } = cellGeometry(size, gridSize, 0.72);
-  const { index: winner, value: winnerStrength } = strongestDigit(confidence);
-  const focus = DIGIT_ANCHORS[winner] ?? { x: 0.5, y: 0.5 };
-
-  ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-  for (const sample of samples) {
-    if (sample.alpha < 0.06) continue;
-    const featurePull = 0.28 + winnerStrength * 0.18;
-    const localPhase =
-      Math.sin(sample.nx * Math.PI * 5 + layer) *
-      Math.cos(sample.ny * Math.PI * 4 - layer * 0.5);
-    const nx =
-      sample.nx +
-      (focus.x - sample.nx) * featurePull +
-      Math.cos(localPhase * Math.PI) * 0.045;
-    const ny =
-      sample.ny +
-      (focus.y - sample.ny) * featurePull +
-      Math.sin(localPhase * Math.PI) * 0.045;
-    const gx = Math.max(0, Math.min(gridSize - 1, Math.round(nx * gridSize)));
-    const gy = Math.max(0, Math.min(gridSize - 1, Math.round(ny * gridSize)));
-    drawCell(
-      ctx,
-      origin + gx * cellSize,
-      origin + gy * cellSize,
-      cellSize,
-      sample.alpha * (0.72 + winnerStrength * 0.3),
-      layer,
-    );
-  }
-
-  ctx.strokeStyle = "rgba(8, 14, 16, 0.14)";
-  ctx.lineWidth = 2.8;
-  for (let arc = 0; arc < 7; arc += 1) {
-    const radius = size * (0.11 + arc * 0.034);
-    ctx.beginPath();
-    ctx.arc(
-      size * (0.5 + (focus.x - 0.5) * 0.34),
-      size * (0.5 + (focus.y - 0.5) * 0.34),
-      radius,
-      layer * 0.42 + arc * 0.31,
-      layer * 0.42 + arc * 0.31 + Math.PI * 0.58,
-    );
-    ctx.stroke();
-  }
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.38)";
-  ctx.lineWidth = 1.35;
-  for (let arc = 0; arc < 7; arc += 1) {
-    const radius = size * (0.11 + arc * 0.034);
-    ctx.beginPath();
-    ctx.arc(
-      size * (0.5 + (focus.x - 0.5) * 0.34),
-      size * (0.5 + (focus.y - 0.5) * 0.34),
-      radius,
-      layer * 0.42 + arc * 0.31,
-      layer * 0.42 + arc * 0.31 + Math.PI * 0.58,
-    );
-    ctx.stroke();
-  }
-  ctx.restore();
+  drawLuminousCellField(
+    ctx,
+    buildFeatureBundleField(samples, confidence, layer),
+    layer,
+  );
 }
 
 function drawCandidateSplittingLightField(
   ctx: CanvasRenderingContext2D,
+  samples: InputLightSample[],
   confidence: number[],
   layer: number,
 ) {
-  const size = ctx.canvas.width;
-  const centerX = size / 2;
-  const centerY = size / 2;
-
-  ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-  confidence.forEach((strength, digit) => {
-    const displayStrength = outputDisplayStrength(confidence, strength);
-    if (displayStrength < 0.02) return;
-
-    const anchor = DIGIT_ANCHORS[digit];
-    const x = size * (0.5 + (anchor.x - 0.5) * 0.72);
-    const y = size * (0.5 + (anchor.y - 0.5) * 0.72);
-    const alpha = 0.05 + displayStrength * 0.28;
-    const radius = size * (0.045 + displayStrength * 0.065);
-
-    const glow = ctx.createRadialGradient(x, y, 0, x, y, radius * 3.6);
-    glow.addColorStop(0, `rgba(255, 255, 255, ${alpha * 1.15})`);
-    glow.addColorStop(0.48, `rgba(245, 245, 238, ${alpha * 0.72})`);
-    glow.addColorStop(1, "rgba(245, 245, 238, 0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, size, size);
-
-    for (let trace = 0; trace < 2; trace += 1) {
-      const bend = digit * 0.37 + trace * 0.9 + layer;
-      ctx.strokeStyle = `rgba(8, 14, 16, ${0.06 + displayStrength * 0.15})`;
-      ctx.lineWidth = 1.6 + displayStrength * 1.4;
-      ctx.beginPath();
-      ctx.moveTo(
-        centerX + Math.cos(bend) * size * 0.06,
-        centerY + Math.sin(bend) * size * 0.06,
-      );
-      ctx.quadraticCurveTo(
-        size * (0.5 + Math.cos(bend + 0.8) * 0.12),
-        size * (0.5 + Math.sin(bend + 0.8) * 0.12),
-        x,
-        y,
-      );
-      ctx.stroke();
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.18 + displayStrength * 0.28})`;
-      ctx.lineWidth = 0.85 + displayStrength * 0.8;
-      ctx.beginPath();
-      ctx.moveTo(
-        centerX + Math.cos(bend) * size * 0.06,
-        centerY + Math.sin(bend) * size * 0.06,
-      );
-      ctx.quadraticCurveTo(
-        size * (0.5 + Math.cos(bend + 0.8) * 0.12),
-        size * (0.5 + Math.sin(bend + 0.8) * 0.12),
-        x,
-        y,
-      );
-      ctx.stroke();
-    }
-  });
-  ctx.restore();
+  drawLuminousCellField(
+    ctx,
+    buildCandidateField(samples, confidence, layer),
+    layer,
+  );
 }
 
 function drawIdleLight(ctx: CanvasRenderingContext2D, size: number) {
@@ -692,19 +768,70 @@ export function drawLensTexture(
   circleMask(ctx, size);
 
   if (hasInk) {
-    if (layer === 1 && inputLightSamples.length > 0) {
+    if (layer === 1) {
       drawFirstLensTransformation(ctx, inputLightSamples, layer);
     } else if (layer === 2) {
       drawCircuitLikeLightField(ctx, inputLightSamples, layer);
     } else if (layer === 3) {
       drawFeatureBundleLightField(ctx, inputLightSamples, confidence, layer);
     } else {
-      drawCandidateSplittingLightField(ctx, confidence, layer);
+      drawCandidateSplittingLightField(
+        ctx,
+        inputLightSamples,
+        confidence,
+        layer,
+      );
     }
 
+    drawFixedCircuitRelief(ctx, size, layer, 0.46);
     drawSurfaceInterference(ctx, size, layer, 1.2);
   } else {
     drawIdleLight(ctx, size);
+  }
+
+  ctx.restore();
+}
+
+function drawOutputConfidenceGlow(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+  confidence: number[],
+) {
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+
+  for (let digit = 0; digit < DIGITS; digit += 1) {
+    const displayStrength = outputDisplayStrength(
+      confidence,
+      confidence[digit],
+    );
+    if (displayStrength < 0.01) continue;
+
+    const anchor = DIGIT_ANCHORS[digit];
+    const x = anchor.x * size;
+    const y = anchor.y * size;
+    const radius = size * 0.074;
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, radius * 2.2);
+    glow.addColorStop(
+      0,
+      `rgba(255, 255, 255, ${0.56 + displayStrength * 0.44})`,
+    );
+    glow.addColorStop(
+      0.34,
+      `rgba(196, 236, 243, ${0.18 + displayStrength * 0.62})`,
+    );
+    glow.addColorStop(0.72, `rgba(84, 140, 152, ${displayStrength * 0.28})`);
+    glow.addColorStop(1, "rgba(225, 252, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.globalCompositeOperation = "screen";
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.14 + displayStrength * 0.32})`;
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.arc(x, y, size * 0.052, digit * 0.31, digit * 0.31 + Math.PI * 1.3);
+    ctx.stroke();
+    ctx.globalCompositeOperation = "source-over";
   }
 
   ctx.restore();
@@ -732,11 +859,15 @@ export function drawOutputTexture(
     size / 2,
     size * 0.55,
   );
-  paper.addColorStop(0, "#ffffff");
-  paper.addColorStop(0.72, "#eef4f5");
-  paper.addColorStop(1, "#dfe8ea");
+  paper.addColorStop(0, "#edf4f5");
+  paper.addColorStop(0.72, "#dce8eb");
+  paper.addColorStop(1, "#cbd8dc");
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, size, size);
+
+  if (hasInk) {
+    drawOutputConfidenceGlow(ctx, size, confidence);
+  }
 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -746,18 +877,10 @@ export function drawOutputTexture(
     const anchor = DIGIT_ANCHORS[digit];
     const x = anchor.x * size;
     const y = anchor.y * size;
-    const strength = hasInk ? confidence[digit] : 0;
-    const displayStrength = hasInk
-      ? outputDisplayStrength(confidence, strength)
-      : 0;
-    ctx.lineWidth = hasInk ? 2.4 + displayStrength * 1.5 : 1.8;
-    ctx.strokeStyle = hasInk
-      ? `rgba(8, 12, 14, ${0.18 + displayStrength * 0.7})`
-      : "rgba(36, 52, 56, 0.18)";
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = "rgba(36, 52, 56, 0.18)";
     ctx.strokeText(String(digit), x, y);
-    ctx.fillStyle = hasInk
-      ? confidenceDigitFill(displayStrength)
-      : "rgba(36, 52, 56, 0.68)";
+    ctx.fillStyle = "rgba(36, 52, 56, 0.66)";
     ctx.fillText(String(digit), x, y);
   }
 
