@@ -13,7 +13,8 @@ npm run dev
 
 Then open the local Vite URL printed in the terminal.
 
-Use `?debug=1` for numeric camera debug controls.
+Use `Ctrl/Cmd+Shift+D` to toggle debug controls. On touch-only devices, tap the
+top-left corner five times within three seconds.
 
 ## GitHub Pages
 
@@ -38,9 +39,10 @@ the Pages source is set to GitHub Actions, the workflow passed
 ## Current Prototype
 
 - Vite + React + TypeScript
-- Fixed-camera Three.js scene
+- Free-camera Three.js scene
 - Desktop landscape composition
-- Handwritten input directly on the first circular optical surface
+- Handwritten input through the Drawing Panel, reflected on the first circular
+  optical surface
 - Four fixed circular relief lens layers
 - Quiet white environment with cool white to cyan light accents
 - Opaque output screen with upright 0 through 9 marks arranged around a circle

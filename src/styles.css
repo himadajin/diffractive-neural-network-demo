@@ -65,6 +65,44 @@ button {
   cursor: grabbing;
 }
 
+.drawing-panel-toggle {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 5;
+  min-width: 58px;
+  height: 38px;
+  border: 1px solid rgba(76, 112, 120, 0.24);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: rgba(31, 46, 50, 0.76);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow:
+    0 14px 34px rgba(47, 70, 76, 0.12),
+    inset 0 0 18px rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.drawing-panel-toggle:hover {
+  border-color: rgba(55, 95, 105, 0.4);
+  color: #182326;
+  background: rgba(255, 255, 255, 0.84);
+  transform: translateY(-1px);
+}
+
+.drawing-panel-toggle--open {
+  color: rgba(31, 46, 50, 0.84);
+}
+
 .drawing-panel {
   position: absolute;
   z-index: 4;

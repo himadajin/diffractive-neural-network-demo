@@ -4,7 +4,6 @@ import type { CameraConfig, Point3 } from "./types";
 type CameraDebugControlsProps = {
   cameraConfig: CameraConfig;
   setCameraConfig: Dispatch<SetStateAction<CameraConfig>>;
-  onOpenDrawingPanel: () => void;
   onResetCamera: () => void;
 };
 
@@ -16,7 +15,6 @@ function readNumber(value: string, fallback: number) {
 export function CameraDebugControls({
   cameraConfig,
   setCameraConfig,
-  onOpenDrawingPanel,
   onResetCamera,
 }: CameraDebugControlsProps) {
   const updateCameraValue = useCallback(
@@ -44,9 +42,6 @@ export function CameraDebugControls({
         <span>camera</span>
         <button type="button" onClick={copyCamera}>
           copy
-        </button>
-        <button type="button" onClick={onOpenDrawingPanel}>
-          draw
         </button>
         <button type="button" onClick={onResetCamera}>
           reset
