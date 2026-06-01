@@ -385,6 +385,14 @@ export function OpticalBenchCanvas() {
     setPanelOpen(true);
   }, []);
 
+  const toggleDrawingPanel = useCallback(() => {
+    if (panelOpenRef.current) {
+      setPanelOpen(false);
+      return;
+    }
+    openDrawingPanel();
+  }, [openDrawingPanel]);
+
   const resetCamera = useCallback(() => {
     const container = containerRef.current;
     const state = stateRef.current;
@@ -479,10 +487,7 @@ export function OpticalBenchCanvas() {
         return;
       }
       if (debugRef.current) return;
-      if (panelOpenRef.current) {
-        setPanelOpen(false);
-        return;
-      }
+      if (panelOpenRef.current) return;
       if (!hitsInputSurface(event, container, state)) return;
       event.preventDefault();
       syncDrawingPanelCanvas(drawingCanvasRef.current, state);
@@ -636,6 +641,17 @@ export function OpticalBenchCanvas() {
         className={`bench-canvas${debug ? " bench-canvas--debug" : ""}`}
         aria-label="Depth-aligned optical bench"
       />
+      <button
+        className={`drawing-panel-toggle${
+          panelOpen ? " drawing-panel-toggle--open" : ""
+        }`}
+        type="button"
+        aria-label={panelOpen ? "Close drawing panel" : "Open drawing panel"}
+        title={panelOpen ? "Close drawing panel" : "Open drawing panel"}
+        onClick={toggleDrawingPanel}
+      >
+        {panelOpen ? "Close" : "Draw"}
+      </button>
       <section
         className={`drawing-panel${panelOpen ? " drawing-panel--open" : ""}`}
         aria-label="Drawing panel"
@@ -673,7 +689,6 @@ export function OpticalBenchCanvas() {
         <CameraDebugControls
           cameraConfig={cameraConfig}
           setCameraConfig={setAdjustedCameraConfig}
-          onOpenDrawingPanel={openDrawingPanel}
           onResetCamera={resetCamera}
         />
       ) : null}

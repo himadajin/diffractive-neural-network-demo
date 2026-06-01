@@ -21,40 +21,44 @@ The shared left/right and top/bottom meaning of the Handwritten Input: a digit i
 _Avoid_: Mirrored input, back-side input, classifier-only orientation, surface-local handedness
 
 **Drawing Panel**:
-The viewer-facing two-dimensional drawing surface used to create the Handwritten Input. It belongs to the Exhibition UI, not the optical instrument, and contains the clearing control; when collapsed, clearing does not need a separate visible control. The panel opens from the Input Surface but remains layout-independent from it, so drawing stays practical without displacing the real-time optical response or the Optical Bench's visual presence.
-_Avoid_: 3D object drawing, optical component, settings panel, preset selector, global clear button, hidden input affordance, close-button chrome, connector line, callout tether
+The viewer-facing two-dimensional drawing surface used to create the Handwritten Input. It belongs to the Exhibition UI, not the optical instrument, and contains the clearing control; when collapsed, clearing does not need a separate visible control. The panel opens from an Input Surface tap or the Drawing Panel Button, while remaining layout-independent from the Optical Bench.
+_Avoid_: 3D object drawing, optical component, settings panel, preset selector, global clear button, hidden-only input affordance, close-button chrome, connector line, callout tether
+
+**Drawing Panel Button**:
+A small always-available Exhibition UI control that opens the Drawing Panel when the Input Surface is hard to reach because of Free Camera Interaction, then changes in place into the close control while the panel is open. It is a practical recovery affordance, not a settings entry point or a replacement for the Input Surface tap.
+_Avoid_: Debug-only draw button, settings button, large toolbar, mode switch, separate close chrome
 
 **Input Surface**:
-The first circular optical surface of the Optical Bench, carrying the live visual imprint of the Handwritten Input into the optical path. When the Drawing Panel is collapsed, it acts as the visual affordance for opening the panel, while remaining part of the optical instrument rather than the surface the viewer draws on directly.
+The first circular optical surface of the Optical Bench, carrying the live visual imprint of the Handwritten Input into the optical path. When the Drawing Panel is collapsed, it acts as one tap affordance for opening the panel, while drags on the bench canvas remain Free Camera Interaction.
 _Avoid_: Drawing panel, control canvas, classifier input widget
 
 **Exhibition UI**:
-The viewer-facing controls of the Artwork, limited to drawing, clearing, and seeing the optical result.
+The viewer-facing controls of the Artwork, limited to opening the Drawing Panel, drawing, clearing, moving the camera, and seeing the optical result.
 _Avoid_: Settings panel, explanation panel, preset selector
 
 **Development Controls**:
-Non-exhibition controls used to test and debug the Artwork, such as presets, diagnostics, model confidence inspection, or numeric camera controls. They may expose reproducible parameter values but must stay outside the viewer-facing Exhibition UI.
+Non-exhibition controls used to test and debug the Artwork, such as presets, diagnostics, model confidence inspection, or numeric camera readouts. They may expose reproducible parameter values but must stay outside the viewer-facing Exhibition UI.
 _Avoid_: Viewer-facing controls
 
-**Camera Debug Controls**:
-A minimal Development Controls surface for adjusting and reading the Optical Bench camera position, target, and field of view. It edits the Artwork's current fixed camera rather than a separate debug-only camera; it may include direct camera manipulation, but the result should remain expressible as exact numeric parameters so visual composition can be discussed without adding exhibition-facing controls.
-_Avoid_: Exhibition camera navigation, viewer-facing orbit controls
+**Free Camera Interaction**:
+The viewer-facing ability to move the Artwork camera freely around the Optical Bench. It favors viewer agency and inspectability over preserving one curated bench angle; bench canvas drags belong to this interaction even when they begin over the Input Surface.
+_Avoid_: Developer-only camera movement, fixed exhibition camera, locked bench angle, drag-to-open drawing
+
+**Camera Readout Controls**:
+A Development Controls surface for reading and reproducing the current Artwork camera position, target, and field of view. It describes the same camera that viewers can move, not a separate debug-only camera.
+_Avoid_: Separate debug camera, viewer-facing settings panel
 
 **Debug Interaction Priority**:
-The rule that Development Controls own ambiguous pointer or touch gestures while debug mode is active. Exhibition UI interactions may remain available where they do not conflict, and explicit Drawing Panel input remains Handwritten Input rather than camera manipulation.
-_Avoid_: Mixed viewer and developer gesture ownership, debug gestures as exhibition behavior
+The rule that Development Controls own only gestures that begin on debug-specific controls while debug mode is active. Bench canvas gestures remain Free Camera Interaction, and explicit Drawing Panel input remains Handwritten Input.
+_Avoid_: Debug mode stealing bench navigation, mixed camera and drawing ownership
 
 **Hidden Debug Gesture**:
 A deliberately unobtrusive Development Controls entry gesture for touch-only devices where keyboard shortcuts are unavailable. It must not read as part of the Exhibition UI or invite viewer interaction.
 _Avoid_: Debug button, visible settings affordance, viewer-facing control
 
-**Fixed Bench View Angle**:
-The stable viewing relationship between the Exhibition camera and the Depth-Aligned Optical Bench: the optical axis keeps the same apparent angle across presentation sizes and Drawing Panel states. Readability may be preserved through framing scale, spacing, transparency, and size choices, but not by switching the camera's viewing angle.
-_Avoid_: Breakpoint camera angle, panel-driven camera angle, layout-dependent view direction
-
-**Responsive Fixed Camera**:
-The Artwork's non-interactive camera framing, chosen by presentation size so the Depth-Aligned Optical Bench remains readable without exposing viewer-facing camera controls. It preserves the Fixed Bench View Angle; responsive adaptation may change framing scale or screen placement, but not the camera's viewing direction relative to the optical axis.
-_Avoid_: Orbit controls, free camera, viewer-adjustable camera
+**Initial Camera Framing**:
+The Artwork's starting camera composition, chosen by presentation size so the Depth-Aligned Optical Bench is readable before the viewer moves it. It is a starting point for Free Camera Interaction, not a locked viewpoint.
+_Avoid_: Fixed camera, canonical bench angle, debug-only camera framing
 
 **Prototype Rendering**:
 The initial rendering approach for the Artwork, using a simplified Canvas-based version to establish visual direction before investing in more detailed glass rendering.
@@ -214,7 +218,16 @@ Dev: "Does touching the Input Surface create ink directly on the 3D surface?"
 Domain expert: "No. Touching the Input Surface opens the Drawing Panel; ink is created through the Drawing Panel and reflected live onto the Input Surface."
 
 Dev: "How does the viewer open the Drawing Panel?"
-Domain expert: "By touching or clicking the Input Surface. The affordance should be visual and restrained, not an extra explanatory button."
+Domain expert: "By tapping or clicking the Input Surface without dragging, or by using the small always-available Drawing Panel Button. Free Camera Interaction can make the Input Surface hard to reach, so the button is a practical recovery affordance."
+
+Dev: "If the viewer starts on the Input Surface and drags, should that open the Drawing Panel?"
+Domain expert: "No. A tap opens the Drawing Panel, but a bench canvas drag remains Free Camera Interaction."
+
+Dev: "Should the Drawing Panel Button exist only in debug mode?"
+Domain expert: "No. Opening the Drawing Panel is viewer-facing Artwork behavior, so the button should not be tied to Development Controls."
+
+Dev: "When the Drawing Panel is open, should the Drawing Panel Button disappear?"
+Domain expert: "No. It should change in place into the close control, so opening and closing the panel have one stable location."
 
 Dev: "Can the Drawing Panel collapse?"
 Domain expert: "Yes. It may collapse when presentation space is tight, especially on mobile, as long as the input affordance remains visible and it does not become a settings panel."
@@ -241,22 +254,22 @@ Dev: "Should the Drawing Panel become large enough to prioritize beautiful handw
 Domain expert: "No. The Artwork is about real-time optical feedback, so the Drawing Panel should remain practical without sacrificing the visible Optical Bench."
 
 Dev: "Can the screen show model diagnostics?"
-Domain expert: "Only as Development Controls. The Exhibition UI should stay limited to drawing, clearing, and the optical result."
+Domain expert: "Only as Development Controls. The Exhibition UI should stay limited to opening the Drawing Panel, drawing, clearing, moving the camera, and seeing the optical result."
 
 Dev: "Should viewers be able to move the camera?"
-Domain expert: "No. Camera Debug Controls may exist behind a debug flag, but the Artwork itself has a fixed camera."
+Domain expert: "Yes. Free Camera Interaction is part of the Artwork, because viewer agency and inspectability matter more than preserving one curated bench angle."
 
-Dev: "If a developer drags the camera in debug mode, should the numeric camera values still matter?"
-Domain expert: "Yes. Camera Debug Controls may support direct manipulation, but the resulting camera should still be readable and copyable as exact numeric values."
+Dev: "If a viewer moves the camera, is that a debug-only action?"
+Domain expert: "No. The same camera movement belongs to normal Artwork interaction; debug mode may only add readout and reproducibility controls."
 
 Dev: "When debug mode is turned off, should the camera return to its previous responsive framing?"
-Domain expert: "No. Camera Debug Controls edit the Artwork's current fixed camera, so returning to normal mode should preserve the adjusted composition."
+Domain expert: "No. Debug mode does not own the camera, so leaving debug mode should preserve the current viewer camera."
 
-Dev: "After a developer adjusts the camera, should resizing the presentation restore Responsive Fixed Camera framing?"
-Domain expert: "No. The adjusted camera remains the current fixed camera until it is explicitly reset."
+Dev: "After a viewer adjusts the camera, should resizing the presentation restore Initial Camera Framing?"
+Domain expert: "No. The adjusted camera remains the current viewer camera until it is explicitly reset."
 
 Dev: "In debug mode, should a canvas drag open or edit the Drawing Panel if it could also move the camera?"
-Domain expert: "No. Debug Interaction Priority means ambiguous bench canvas gestures belong to Camera Debug Controls while debug mode is active, but explicit Drawing Panel input remains Handwritten Input."
+Domain expert: "No. Bench canvas gestures remain Free Camera Interaction, while explicit Drawing Panel input remains Handwritten Input."
 
 Dev: "How should touch-only devices enter debug mode without a keyboard?"
 Domain expert: "Through a Hidden Debug Gesture. It should be available to developers without appearing as Exhibition UI."
@@ -264,11 +277,11 @@ Domain expert: "Through a Hidden Debug Gesture. It should be available to develo
 Dev: "Should debug mode be enabled through the page URL?"
 Domain expert: "No. Debug mode is Development Controls state, not an addressable viewer-facing variant of the Artwork."
 
-Dev: "Can the fixed camera change for different screen sizes?"
-Domain expert: "Yes, but only as framing. A Responsive Fixed Camera should preserve the Fixed Bench View Angle so the optical axis does not feel like it rotates between screen sizes."
+Dev: "Can the initial camera change for different screen sizes?"
+Domain expert: "Yes. Initial Camera Framing should make the Optical Bench readable before the viewer moves it."
 
 Dev: "Can opening the Drawing Panel change the camera angle to make more room?"
-Domain expert: "No. The Drawing Panel belongs to the Exhibition UI; it may overlay the Artwork, but it should not drive a new view angle for the Optical Bench."
+Domain expert: "No. The Drawing Panel belongs to the Exhibition UI; it may overlay the Artwork, but it should not automatically move the camera."
 
 Dev: "Can mobile show only the drawing surface while the viewer draws?"
 Domain expert: "No. Whole Path Readability matters across supported screen sizes: the input, intermediate lenses, and output should remain visible together."
