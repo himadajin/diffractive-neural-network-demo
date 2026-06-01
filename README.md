@@ -51,5 +51,6 @@ the Pages source is set to GitHub Actions, the workflow passed
 ## Docs
 
 - Project vocabulary: `docs/CONTEXT.md`
+- Testing strategy: `docs/testing.md`
 - Agent instructions: `AGENTS.md`
 - Third-party notices: `THIRD_PARTY_NOTICES.md`
