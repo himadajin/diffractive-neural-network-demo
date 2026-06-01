@@ -1,4 +1,3 @@
-import { classifyDigit } from "../classifier";
 import { DIGITS } from "./constants";
 import type { SceneState } from "./types";
 
@@ -64,7 +63,8 @@ export function visualFallbackConfidence(canvas: HTMLCanvasElement) {
 
 function runClassification(state: SceneState, requestId: number) {
   state.classificationInFlight = true;
-  void classifyDigit(state.inputCanvas)
+  void import("../classifier")
+    .then(({ classifyDigit }) => classifyDigit(state.inputCanvas))
     .then((confidence) => {
       if (state.classificationRequestId !== requestId || !state.hasInk) return;
       const strongest = Math.max(...confidence);

@@ -1,9 +1,8 @@
 import * as ort from "onnxruntime-web";
+import { MODEL_SIZE, normalizeDigitInputData } from "./classifierNormalization";
 
 const DIGIT_COUNT = 10;
-export const MODEL_SIZE = 28;
-const TARGET_INK_SIZE = 20;
-const MIN_INK_ALPHA = 12;
+export { MODEL_SIZE };
 
 let sessionPromise: Promise<ort.InferenceSession> | null = null;
 
@@ -39,63 +38,7 @@ export function normalizeDigitInput(canvas: HTMLCanvasElement) {
   if (!source) return null;
 
   const image = source.getImageData(0, 0, canvas.width, canvas.height);
-  let minX = canvas.width;
-  let minY = canvas.height;
-  let maxX = 0;
-  let maxY = 0;
-  let ink = 0;
-
-  for (let y = 0; y < canvas.height; y += 1) {
-    for (let x = 0; x < canvas.width; x += 1) {
-      const alpha = image.data[(y * canvas.width + x) * 4 + 3];
-      if (alpha < MIN_INK_ALPHA) continue;
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-      ink += alpha / 255;
-    }
-  }
-
-  if (ink < 2.5) return null;
-
-  const width = Math.max(1, maxX - minX + 1);
-  const height = Math.max(1, maxY - minY + 1);
-  const scale = TARGET_INK_SIZE / Math.max(width, height);
-  const normalized = document.createElement("canvas");
-  normalized.width = MODEL_SIZE;
-  normalized.height = MODEL_SIZE;
-  const ctx = normalized.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
-
-  ctx.clearRect(0, 0, MODEL_SIZE, MODEL_SIZE);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  const drawWidth = width * scale;
-  const drawHeight = height * scale;
-  const offsetX = (MODEL_SIZE - drawWidth) / 2;
-  const offsetY = (MODEL_SIZE - drawHeight) / 2;
-  // Preserve the viewer-upright handedness shared by the Drawing Panel,
-  // Input Surface, and Classifier. Normalization crops and scales only.
-  ctx.drawImage(
-    canvas,
-    minX,
-    minY,
-    width,
-    height,
-    offsetX,
-    offsetY,
-    drawWidth,
-    drawHeight,
-  );
-
-  const normalizedImage = ctx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
-  const input = new Float32Array(MODEL_SIZE * MODEL_SIZE);
-  for (let i = 0; i < input.length; i += 1) {
-    input[i] = normalizedImage.data[i * 4 + 3] / 255;
-  }
-
-  return input;
+  return normalizeDigitInputData(image.data, canvas.width, canvas.height);
 }
 
 export async function classifyDigit(canvas: HTMLCanvasElement) {

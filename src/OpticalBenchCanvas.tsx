@@ -8,8 +8,18 @@ import {
   type PointerEvent as ReactPointerEvent,
   type SetStateAction,
 } from "react";
-import * as THREE from "three";
 import { CameraDebugControls } from "./opticalBench/CameraDebugControls";
+import {
+  DEFAULT_HIDDEN_DEBUG_TAP_CONFIG,
+  distanceBetween,
+  dollyCamera,
+  midpoint,
+  orbitCamera,
+  panCamera,
+  pointerPoint,
+  updateHiddenDebugTap,
+  type HiddenDebugTapState,
+} from "./opticalBench/cameraControls";
 import {
   DEFAULT_CAMERA,
   DIGITS,
@@ -33,11 +43,6 @@ import {
 import type { CameraConfig, Point, SceneState } from "./opticalBench/types";
 
 const DEBUG_STORAGE_KEY = "diffractive-neural-network-debug";
-const HIDDEN_DEBUG_TAP_LIMIT = 5;
-const HIDDEN_DEBUG_TAP_ZONE = 64;
-const HIDDEN_DEBUG_TAP_WINDOW_MS = 3000;
-const ORBIT_SPEED = 0.006;
-const PINCH_SPEED = 0.012;
 
 type DebugPointerState = {
   pointers: Map<number, Point>;
@@ -90,104 +95,6 @@ function pointOnDrawingPanel(
   return { x, y };
 }
 
-function roundCameraValue(value: number) {
-  return Number(value.toFixed(3));
-}
-
-function vectorFromPoint(point: CameraConfig["position"]) {
-  return new THREE.Vector3(point.x, point.y, point.z);
-}
-
-function pointFromVector(vector: THREE.Vector3) {
-  return {
-    x: roundCameraValue(vector.x),
-    y: roundCameraValue(vector.y),
-    z: roundCameraValue(vector.z),
-  };
-}
-
-function pointerPoint(event: PointerEvent): Point {
-  return { x: event.clientX, y: event.clientY };
-}
-
-function distanceBetween(a: Point, b: Point) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function midpoint(a: Point, b: Point) {
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-function cameraBasis(config: CameraConfig) {
-  const position = vectorFromPoint(config.position);
-  const target = vectorFromPoint(config.target);
-  const viewDirection = target.clone().sub(position).normalize();
-  const right = viewDirection
-    .clone()
-    .cross(new THREE.Vector3(0, 1, 0))
-    .normalize();
-  const up = right.clone().cross(viewDirection).normalize();
-  const distance = position.distanceTo(target);
-
-  return { position, target, right, up, viewDirection, distance };
-}
-
-function orbitCamera(config: CameraConfig, dx: number, dy: number) {
-  const target = vectorFromPoint(config.target);
-  const offset = vectorFromPoint(config.position).sub(target);
-  const spherical = new THREE.Spherical().setFromVector3(offset);
-  spherical.theta -= dx * ORBIT_SPEED;
-  spherical.phi = THREE.MathUtils.clamp(
-    spherical.phi - dy * ORBIT_SPEED,
-    0.12,
-    Math.PI - 0.12,
-  );
-  offset.setFromSpherical(spherical);
-
-  return {
-    ...config,
-    position: pointFromVector(target.clone().add(offset)),
-  };
-}
-
-function panCamera(
-  config: CameraConfig,
-  dx: number,
-  dy: number,
-  height: number,
-) {
-  const { position, target, right, up, distance } = cameraBasis(config);
-  const worldUnitsPerPixel =
-    (2 * Math.tan(THREE.MathUtils.degToRad(config.fov) / 2) * distance) /
-    Math.max(1, height);
-  const shift = right
-    .multiplyScalar(-dx * worldUnitsPerPixel)
-    .add(up.multiplyScalar(dy * worldUnitsPerPixel));
-
-  return {
-    ...config,
-    position: pointFromVector(position.add(shift)),
-    target: pointFromVector(target.add(shift)),
-  };
-}
-
-function dollyCamera(config: CameraConfig, delta: number) {
-  const { position, target, viewDirection, distance } = cameraBasis(config);
-  const nextDistance = THREE.MathUtils.clamp(
-    distance * Math.exp(delta * PINCH_SPEED),
-    1.2,
-    16,
-  );
-  const nextPosition = target
-    .clone()
-    .sub(viewDirection.multiplyScalar(nextDistance));
-
-  return {
-    ...config,
-    position: pointFromVector(nextPosition),
-  };
-}
-
 export function OpticalBenchCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -201,7 +108,10 @@ export function OpticalBenchCanvas() {
     lastMultiCenter: null,
     lastPinchDistance: null,
   });
-  const hiddenDebugTapRef = useRef({ count: 0, firstTapAt: 0 });
+  const hiddenDebugTapRef = useRef<HiddenDebugTapState>({
+    count: 0,
+    firstTapAt: 0,
+  });
   const debugRef = useRef(false);
   const cameraConfigRef = useRef<CameraConfig>(DEFAULT_CAMERA);
   const cameraAdjustedRef = useRef(false);
@@ -608,25 +518,14 @@ export function OpticalBenchCanvas() {
 
   useEffect(() => {
     const handlePointerUp = (event: PointerEvent) => {
-      if (
-        event.clientX > HIDDEN_DEBUG_TAP_ZONE ||
-        event.clientY > HIDDEN_DEBUG_TAP_ZONE
-      ) {
-        return;
-      }
-
-      const now = window.performance.now();
-      const hiddenDebugTap = hiddenDebugTapRef.current;
-      if (now - hiddenDebugTap.firstTapAt > HIDDEN_DEBUG_TAP_WINDOW_MS) {
-        hiddenDebugTap.count = 0;
-        hiddenDebugTap.firstTapAt = now;
-      }
-
-      hiddenDebugTap.count += 1;
-      if (hiddenDebugTap.count < HIDDEN_DEBUG_TAP_LIMIT) return;
-
-      hiddenDebugTap.count = 0;
-      hiddenDebugTap.firstTapAt = 0;
+      const result = updateHiddenDebugTap(
+        hiddenDebugTapRef.current,
+        pointerPoint(event),
+        window.performance.now(),
+        DEFAULT_HIDDEN_DEBUG_TAP_CONFIG,
+      );
+      hiddenDebugTapRef.current = result.state;
+      if (!result.shouldToggle) return;
       toggleDebug();
     };
 
